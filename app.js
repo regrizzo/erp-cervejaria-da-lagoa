@@ -1,5 +1,5 @@
 
-const APP_BUILD = "login-google-20260714";
+const APP_BUILD = "link-erp-cervejaria-da-lagoa-20260714";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -8896,7 +8896,7 @@ async function cadastrarNovoUsuario() {
    LOGIN COM GOOGLE
    ========================================================== */
 
-const GOOGLE_LOGIN_REDIRECT = "https://regrizzo.github.io/erp-cervejaria-supabase/";
+const GOOGLE_LOGIN_REDIRECT = "https://regrizzo.github.io/erp-cervejaria-da-lagoa/";
 
 async function entrarComGoogle() {
   const erro = document.getElementById("loginErro");
