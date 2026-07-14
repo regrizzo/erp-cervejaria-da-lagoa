@@ -100,11 +100,27 @@
           <div id="prodLupulos"></div>
           <button class="btnMini" type="button" onclick="adicionarLinhaInsumo('prodLupulos','LUPULO')">+ Adicionar lúpulo</button>
 
-          <label>Fermento</label>
-          <select id="prodFermento"></select>
+          <label>Tipo de fermento</label>
+          <select id="prodFermentoTipo" onchange="alternarTipoFermentoProducao()">
+            <option value="ESTOQUE">Fermento novo / estoque normal</option>
+            <option value="REUSO">Fermento coletado / reutilizado</option>
+          </select>
 
-          <label>Quantidade de fermento</label>
-          <input id="prodFermentoQtd" type="number" min="0" step="0.001" placeholder="UN">
+          <div id="boxFermentoEstoque">
+            <label>Fermento do estoque</label>
+            <select id="prodFermento"></select>
+
+            <label>Quantidade de fermento</label>
+            <input id="prodFermentoQtd" type="number" min="0" step="0.001" placeholder="UN">
+          </div>
+
+          <div id="boxFermentoReuso" style="display:none;">
+            <label>Fermento reutilizável</label>
+            <select id="prodFermentoReuso"></select>
+
+            <label>Quantidade usada</label>
+            <input id="prodFermentoReusoQtd" type="number" min="0" step="0.001" placeholder="UN">
+          </div>
 
           <label>Observação</label>
           <textarea id="prodObs"></textarea>
@@ -360,6 +376,155 @@
         <div class="maisGrid">
           <div class="maisCard" onclick="mostrarTela('clientes')"><strong>👥 Clientes</strong><span>Cadastro e consulta</span></div>
           <div class="maisCard" onclick="mostrarTela('cadastros')"><strong>🗂️ Cadastros</strong><span>Cervejas e insumos</span></div>
+          <div class="maisCard" onclick="mostrarTela('fermentos')"><strong>🧫 Fermentos</strong><span>Coleta, reuso e descarte</span></div>
+          <div class="maisCard" onclick="mostrarTela('phenomena')"><strong>💰 Phenomena</strong><span>Entradas, estoque e retiradas</span></div>
+          <div class="maisCard" onclick="mostrarTela('painelDia')"><strong>⚠️ Painel do dia</strong><span>Itens zerados e alertas</span></div>
+          <div class="maisCard" onclick="mostrarTela('relatorio')"><strong>📊 Relatório mensal</strong><span>Produção, envase e consumo</span></div>
+          <div class="maisCard" onclick="mostrarTela('auditoria')"><strong>🧾 Auditoria</strong><span>Últimos lançamentos</span></div>
+          <div class="maisCard" onclick="mostrarTela('backup')"><strong>💾 Backup</strong><span>Exportar dados em JSON</span></div>
+        </div>
+      </section>
+
+      <section id="telaFermentos" class="tela">
+        <div class="sectionHeader">
+          <h2>Fermentos</h2>
+          <button class="btnSmall" onclick="carregarFermentos(true)">Atualizar</button>
+        </div>
+
+        <div class="actionGrid">
+          <button class="btnMain" onclick="toggleForm('formColetaFermento')">🧫 Coletar fermento</button>
+          <button class="btnWarn" onclick="toggleForm('formDescarteFermento')">🗑️ Descartar fermento</button>
+        </div>
+
+        <div id="formColetaFermento" class="formBox" style="display:none;">
+          <h3>Coletar fermento para reutilização</h3>
+
+          <label>Lote fermentando</label>
+          <select id="coletaLote"></select>
+
+          <label>Fermento base</label>
+          <input id="coletaBase" placeholder="Ex: US-05, W34/70">
+
+          <label>Quantidade coletada</label>
+          <input id="coletaQtd" type="number" min="0" step="0.001" placeholder="UN">
+
+          <label>Observação</label>
+          <textarea id="coletaObs"></textarea>
+
+          <button onclick="salvarColetaFermento()">Salvar coleta</button>
+          <div id="coletaErro" class="erro"></div>
+        </div>
+
+        <div id="formDescarteFermento" class="formBox" style="display:none;">
+          <h3>Descartar fermento</h3>
+
+          <label>Fermento reutilizável</label>
+          <select id="descarteFermento"></select>
+
+          <label>Quantidade descartada</label>
+          <input id="descarteQtd" type="number" min="0" step="0.001" placeholder="UN">
+
+          <label>Motivo</label>
+          <textarea id="descarteMotivo"></textarea>
+
+          <button onclick="salvarDescarteFermento()">Registrar descarte</button>
+          <div id="descarteErro" class="erro"></div>
+        </div>
+
+        <h3>Fermentos disponíveis</h3>
+        <input class="search" placeholder="Buscar fermento..." oninput="filtrarLista('listaFermentos', this.value)">
+        <div id="listaFermentos" class="lista"></div>
+
+        <h3>Histórico recente</h3>
+        <div id="historicoFermentos" class="lista"></div>
+      </section>
+
+      <section id="telaPhenomena" class="tela">
+        <div class="sectionHeader">
+          <h2>Phenomena</h2>
+          <button class="btnSmall" onclick="carregarPhenomena(true)">Atualizar</button>
+        </div>
+
+        <button class="btnMain" onclick="toggleForm('formRetiradaPhenomena')">📤 Retirar Phenomena</button>
+
+        <div id="formRetiradaPhenomena" class="formBox" style="display:none;">
+          <h3>Retirada do estoque Phenomena</h3>
+          <p class="muted">Esta retirada baixa apenas a origem PHENOMENA. Ela não gera débito financeiro neste app.</p>
+
+          <label>Cerveja</label>
+          <select id="phenRetiradaCerveja"></select>
+
+          <div class="linha2">
+            <div><label>Barris 10L</label><input id="phenRetQ10" type="number" min="0" value="0"></div>
+            <div><label>Barris 20L</label><input id="phenRetQ20" type="number" min="0" value="0"></div>
+          </div>
+          <div class="linha2">
+            <div><label>Barris 30L</label><input id="phenRetQ30" type="number" min="0" value="0"></div>
+            <div><label>Barris 50L</label><input id="phenRetQ50" type="number" min="0" value="0"></div>
+          </div>
+
+          <label>Responsável</label>
+          <input id="phenRetResp" placeholder="Quem retirou">
+
+          <label>Observação</label>
+          <textarea id="phenRetObs"></textarea>
+
+          <button onclick="salvarRetiradaPhenomena()">Registrar retirada</button>
+          <div id="phenRetErro" class="erro"></div>
+        </div>
+
+        <h3>Estoque Phenomena</h3>
+        <div id="estoquePhenomena" class="lista"></div>
+
+        <h3>Entradas Phenomena</h3>
+        <div id="entradasPhenomena" class="lista"></div>
+
+        <h3>Retiradas recentes</h3>
+        <div id="retiradasPhenomena" class="lista"></div>
+      </section>
+
+      <section id="telaPainelDia" class="tela">
+        <div class="sectionHeader">
+          <h2>Painel do dia</h2>
+          <button class="btnSmall" onclick="carregarPainelDia(true)">Atualizar</button>
+        </div>
+        <div id="painelDiaConteudo" class="lista"></div>
+      </section>
+
+      <section id="telaRelatorio" class="tela">
+        <div class="sectionHeader">
+          <h2>Relatório mensal</h2>
+          <button class="btnSmall" onclick="carregarRelatorioMensal(true)">Gerar</button>
+        </div>
+
+        <label>Mês</label>
+        <input id="relatorioMes" type="month">
+
+        <div id="relatorioConteudo" class="lista"></div>
+      </section>
+
+      <section id="telaAuditoria" class="tela">
+        <div class="sectionHeader">
+          <h2>Auditoria</h2>
+          <button class="btnSmall" onclick="carregarAuditoria(true)">Atualizar</button>
+        </div>
+
+        <h3>Últimas movimentações</h3>
+        <div id="auditoriaMovimentacoes" class="lista"></div>
+
+        <h3>Últimos ajustes</h3>
+        <div id="auditoriaAjustes" class="lista"></div>
+      </section>
+
+      <section id="telaBackup" class="tela">
+        <div class="sectionHeader">
+          <h2>Backup</h2>
+        </div>
+
+        <div class="box">
+          <p class="muted">Gera um arquivo JSON com os principais dados do Supabase e baixa no seu celular/computador.</p>
+          <button onclick="gerarBackupJson()">💾 Gerar backup JSON</button>
+          <div id="backupStatus" class="muted" style="margin-top:10px;"></div>
         </div>
       </section>
 

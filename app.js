@@ -8,7 +8,8 @@ const state = {
   cervejas: [],
   insumos: [],
   clientes: [],
-  producoesFermentando: []
+  producoesFermentando: [],
+  fermentosReuso: []
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -58,6 +59,12 @@ function mostrarTela(nome) {
     estoque: "telaEstoque",
     saidas: "telaSaidas",
     mais: "telaMais",
+    fermentos: "telaFermentos",
+    phenomena: "telaPhenomena",
+    painelDia: "telaPainelDia",
+    relatorio: "telaRelatorio",
+    auditoria: "telaAuditoria",
+    backup: "telaBackup",
     clientes: "telaClientes",
     cadastros: "telaCadastros"
   };
@@ -69,7 +76,7 @@ function mostrarTela(nome) {
   if (nome === "producao") btns[1].classList.add("active");
   if (nome === "estoque") btns[2].classList.add("active");
   if (nome === "saidas") btns[3].classList.add("active");
-  if (["mais","clientes","cadastros"].includes(nome)) btns[4].classList.add("active");
+  if (["mais","clientes","cadastros","fermentos","phenomena","painelDia","relatorio","auditoria","backup"].includes(nome)) btns[4].classList.add("active");
 
   if (nome === "inicio") carregarInicio();
   if (nome === "producao") carregarProducao();
@@ -77,6 +84,11 @@ function mostrarTela(nome) {
   if (nome === "saidas") carregarSaidas();
   if (nome === "clientes") carregarClientes();
   if (nome === "cadastros") carregarCadastros();
+  if (nome === "fermentos") carregarFermentos();
+  if (nome === "phenomena") carregarPhenomena();
+  if (nome === "painelDia") carregarPainelDia();
+  if (nome === "relatorio") prepararRelatorio();
+  if (nome === "auditoria") carregarAuditoria();
 }
 
 function toggleForm(id) {
@@ -94,6 +106,9 @@ function toggleForm(id) {
     if (id === "formAjusteCerveja") prepararFormAjusteCerveja();
     if (id === "formAjusteInsumo") prepararFormAjusteInsumo();
     if (id === "formSaida") prepararFormSaida();
+    if (id === "formColetaFermento") prepararFormColetaFermento();
+    if (id === "formDescarteFermento") prepararFormDescarteFermento();
+    if (id === "formRetiradaPhenomena") prepararFormRetiradaPhenomena();
   }
 }
 
@@ -231,9 +246,12 @@ function prepararSelectLotes(id) {
   });
 }
 
-function prepararFormProducao() {
+async function prepararFormProducao() {
   prepararSelectCervejas("prodCerveja");
   prepararSelectInsumos("prodFermento","FERMENTO","Sem fermento");
+  await carregarFermentosReusoBase(true);
+  prepararSelectFermentosReuso("prodFermentoReuso", "Selecionar fermento reutilizável...");
+  alternarTipoFermentoProducao();
   document.getElementById("prodMaltes").innerHTML = "";
   document.getElementById("prodLupulos").innerHTML = "";
   adicionarLinhaInsumo("prodMaltes","MALTE");
@@ -439,27 +457,45 @@ async function salvarProducao() {
 
   const maltes = coletarLinhasInsumos("prodMaltes","MALTE");
   const lupulos = coletarLinhasInsumos("prodLupulos","LUPULO");
+  const tipoFermentoProducao = document.getElementById("prodFermentoTipo").value;
   const fermentoNome = document.getElementById("prodFermento").value;
   const fermentoQtd = Number(document.getElementById("prodFermentoQtd").value || 0);
   const fermento = fermentoNome && fermentoQtd > 0 ? state.insumos.find(i => i.tipo === "FERMENTO" && i.nome === fermentoNome) : null;
 
+  const fermentoReusoId = document.getElementById("prodFermentoReuso").value;
+  const fermentoReusoQtd = Number(document.getElementById("prodFermentoReusoQtd").value || 0);
+  const fermentoReuso = state.fermentosReuso.find(f => f.id === fermentoReusoId);
+
   const cerveja = state.cervejas.find(c => c.nome === cerveja_nome);
 
   const insumosParaValidar = [...maltes, ...lupulos];
-  if (fermentoNome && fermentoQtd > 0) insumosParaValidar.push({
-    tipo:"FERMENTO",
-    nome:fermentoNome,
-    quantidade:fermentoQtd,
-    unidade:fermento ? fermento.unidade : "UN",
-    insumo_id: fermento ? fermento.id : null
-  });
+
+  if (tipoFermentoProducao === "ESTOQUE" && fermentoNome && fermentoQtd > 0) {
+    insumosParaValidar.push({
+      tipo:"FERMENTO",
+      nome:fermentoNome,
+      quantidade:fermentoQtd,
+      unidade:fermento ? fermento.unidade : "UN",
+      insumo_id: fermento ? fermento.id : null
+    });
+  }
 
   try {
     await validarEstoqueInsumosSuficiente(insumosParaValidar);
+
+    if (tipoFermentoProducao === "REUSO") {
+      if (!fermentoReusoId || fermentoReusoQtd <= 0) {
+        throw new Error("Selecione o fermento reutilizável e informe a quantidade usada.");
+      }
+      await validarFermentoReusoSuficiente(fermentoReusoId, fermentoReusoQtd);
+    }
   } catch(e) {
     mostrarErro("prodErro", e.message);
     return;
   }
+
+  const fermentoTipoSalvar = tipoFermentoProducao === "REUSO" ? "REUSO" : (fermentoNome ? "ESTOQUE" : null);
+  const fermentoNomeSalvar = tipoFermentoProducao === "REUSO" ? (fermentoReuso ? fermentoReuso.codigo : "FERMENTO REUSO") : (fermentoNome || null);
 
   const { data: prod, error } = await sb.from("producoes").insert({
     lote,
@@ -468,8 +504,9 @@ async function salvarProducao() {
     litros_produzidos,
     observacao,
     status: "FERMENTANDO",
-    fermento_tipo: fermentoNome ? "ESTOQUE" : null,
-    fermento_nome: fermentoNome || null
+    fermento_tipo: fermentoTipoSalvar,
+    fermento_nome: fermentoNomeSalvar,
+    fermento_reuso_id: tipoFermentoProducao === "REUSO" ? fermentoReusoId : null
   }).select().single();
 
   if (error) {
@@ -493,6 +530,10 @@ async function salvarProducao() {
       await baixarInsumo(item.tipo, item.nome, item.quantidade, item.unidade, `Produção ${cerveja_nome}`, lote, "PRODUCAO");
     }
 
+    if (tipoFermentoProducao === "REUSO") {
+      await usarFermentoReusoNaProducao(fermentoReusoId, fermentoReusoQtd, lote, cerveja_nome, prod.id);
+    }
+
     await sb.from("movimentacoes").insert({
       tipo:"PRODUCAO",
       categoria:"CERVEJA",
@@ -508,7 +549,7 @@ async function salvarProducao() {
     return;
   }
 
-  ["prodLote","prodLitros","prodObs","prodFermentoQtd"].forEach(id => document.getElementById(id).value = "");
+  ["prodLote","prodLitros","prodObs","prodFermentoQtd","prodFermentoReusoQtd"].forEach(id => document.getElementById(id).value = "");
   invalidar("producao","producoesFermentando","estoque","inicio");
   alert("Produção salva e insumos baixados.");
   carregarProducao(true);
@@ -1100,6 +1141,658 @@ async function salvarInsumo() {
 }
 
 
+
+function alternarTipoFermentoProducao() {
+  const tipo = document.getElementById("prodFermentoTipo")?.value || "ESTOQUE";
+  const boxEstoque = document.getElementById("boxFermentoEstoque");
+  const boxReuso = document.getElementById("boxFermentoReuso");
+  if (boxEstoque) boxEstoque.style.display = tipo === "ESTOQUE" ? "block" : "none";
+  if (boxReuso) boxReuso.style.display = tipo === "REUSO" ? "block" : "none";
+}
+
+async function carregarFermentosReusoBase(force=false) {
+  if (state.loaded.fermentosReusoBase && !force) return;
+
+  const { data, error } = await sb.from("fermento_reuso")
+    .select("*")
+    .in("status", ["DISPONIVEL","EM_USO"])
+    .gt("quantidade", 0)
+    .order("criado_em", { ascending:false });
+
+  if (error) {
+    state.fermentosReuso = [];
+  } else {
+    state.fermentosReuso = data || [];
+  }
+
+  state.loaded.fermentosReusoBase = true;
+}
+
+function prepararSelectFermentosReuso(id, placeholder="Selecionar fermento...") {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
+  state.fermentosReuso.forEach(f => {
+    const op = document.createElement("option");
+    op.value = f.id;
+    op.textContent = `${f.codigo} — G${f.geracao} — ${fmt(f.quantidade, 2)} ${f.unidade}`;
+    sel.appendChild(op);
+  });
+}
+
+async function validarFermentoReusoSuficiente(id, quantidade) {
+  const { data, error } = await sb.from("fermento_reuso").select("*").eq("id", id).single();
+  if (error) throw error;
+  if (!data || data.status === "DESCARTADO") throw new Error("Fermento reutilizável não disponível.");
+  if (Number(data.quantidade || 0) < Number(quantidade || 0)) {
+    throw new Error(`${data.codigo}: estoque insuficiente. Disponível ${fmt(data.quantidade, 3)} ${data.unidade}, necessário ${fmt(quantidade, 3)} ${data.unidade}.`);
+  }
+  return data;
+}
+
+async function usarFermentoReusoNaProducao(id, quantidade, lote, cerveja_nome, producao_id) {
+  const f = await validarFermentoReusoSuficiente(id, quantidade);
+  const novaQtd = Number(f.quantidade || 0) - Number(quantidade || 0);
+
+  const historicoAtual = String(f.historico_cervejas || "").trim();
+  const historicoNovo = historicoAtual
+    ? (historicoAtual.includes(cerveja_nome) ? historicoAtual : historicoAtual + " → " + cerveja_nome)
+    : cerveja_nome;
+
+  await sb.from("fermento_reuso").update({
+    quantidade: novaQtd,
+    status: novaQtd > 0 ? "DISPONIVEL" : "USADO",
+    historico_cervejas: historicoNovo
+  }).eq("id", id);
+
+  await sb.from("fermento_historico").insert({
+    fermento_reuso_id: id,
+    acao: "USO",
+    lote,
+    cerveja_nome,
+    quantidade,
+    observacao: "Usado na produção"
+  });
+
+  await sb.from("movimentacoes").insert({
+    tipo:"USO FERMENTO REUSO",
+    categoria:"FERMENTO",
+    item_nome:f.codigo,
+    quantidade:-Math.abs(Number(quantidade)),
+    unidade:f.unidade || "UN",
+    lote,
+    observacao:`Usado na produção ${cerveja_nome}`
+  });
+}
+
+function prepararFormColetaFermento() {
+  prepararSelectLotes("coletaLote");
+  const lote = document.getElementById("coletaLote");
+  if (lote) {
+    lote.onchange = function() {
+      const prod = state.producoesFermentando.find(p => p.lote === lote.value);
+      if (prod && prod.fermento_nome) document.getElementById("coletaBase").value = prod.fermento_nome;
+    };
+  }
+}
+
+async function prepararFormDescarteFermento() {
+  await carregarFermentosReusoBase(true);
+  prepararSelectFermentosReuso("descarteFermento", "Selecionar fermento para descarte...");
+}
+
+async function carregarFermentos(force=false) {
+  if (state.loaded.fermentos && !force) return;
+  await carregarFermentosReusoBase(true);
+
+  const { data: hist } = await sb.from("fermento_historico")
+    .select("*")
+    .order("criado_em", { ascending:false })
+    .limit(20);
+
+  const lista = document.getElementById("listaFermentos");
+  lista.innerHTML = state.fermentosReuso.length ? "" : '<div class="item"><span class="sub">Nenhum fermento reutilizável disponível.</span></div>';
+
+  state.fermentosReuso.forEach(f => {
+    lista.insertAdjacentHTML("beforeend", `
+      <div class="item searchable">
+        <div>
+          <strong>${escapeHtml(f.codigo)}</strong>
+          <div class="sub">Base: ${escapeHtml(f.fermento_base)} • Geração G${escapeHtml(f.geracao)}</div>
+          <div class="sub">Histórico: ${escapeHtml(f.historico_cervejas || "-")}</div>
+          <div class="sub">Origem: ${escapeHtml(f.lote_origem || "-")}</div>
+        </div>
+        <span class="badge">${fmt(f.quantidade, 2)} ${escapeHtml(f.unidade || "UN")}</span>
+      </div>
+    `);
+  });
+
+  const hbox = document.getElementById("historicoFermentos");
+  hbox.innerHTML = (hist || []).length ? "" : '<div class="item"><span class="sub">Nenhum histórico.</span></div>';
+  (hist || []).forEach(h => {
+    hbox.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(h.acao)}</strong>
+          <div class="sub">${dataHoraBR(h.criado_em)} • Lote ${escapeHtml(h.lote || "-")} • ${escapeHtml(h.cerveja_nome || "-")}</div>
+          <div class="sub">${escapeHtml(h.observacao || "")}</div>
+        </div>
+        <span class="badge">${fmt(h.quantidade, 2)}</span>
+      </div>
+    `);
+  });
+
+  state.loaded.fermentos = true;
+}
+
+async function salvarColetaFermento() {
+  mostrarErro("coletaErro", "");
+  const lote = document.getElementById("coletaLote").value;
+  const base = document.getElementById("coletaBase").value.trim();
+  const quantidade = Number(document.getElementById("coletaQtd").value || 0);
+  const observacao = document.getElementById("coletaObs").value.trim();
+
+  if (!lote || !base || quantidade <= 0) {
+    mostrarErro("coletaErro", "Informe lote, fermento base e quantidade coletada.");
+    return;
+  }
+
+  const prod = state.producoesFermentando.find(p => p.lote === lote);
+  if (!prod) {
+    mostrarErro("coletaErro", "Lote não encontrado.");
+    return;
+  }
+
+  let geracao = 2;
+  let historico = prod.cerveja_nome;
+
+  if (prod.fermento_reuso_id) {
+    const { data: fOrigem } = await sb.from("fermento_reuso").select("*").eq("id", prod.fermento_reuso_id).single();
+    if (fOrigem) {
+      geracao = Number(fOrigem.geracao || 1) + 1;
+      historico = fOrigem.historico_cervejas
+        ? (fOrigem.historico_cervejas.includes(prod.cerveja_nome) ? fOrigem.historico_cervejas : fOrigem.historico_cervejas + " → " + prod.cerveja_nome)
+        : prod.cerveja_nome;
+    }
+  }
+
+  const codigo = `F-${lote}-G${geracao}-${Date.now().toString().slice(-4)}`;
+
+  const { data: novo, error } = await sb.from("fermento_reuso").insert({
+    codigo,
+    fermento_base: base,
+    geracao,
+    quantidade,
+    unidade:"UN",
+    status:"DISPONIVEL",
+    historico_cervejas: historico,
+    lote_origem:lote,
+    observacao
+  }).select().single();
+
+  if (error) {
+    mostrarErro("coletaErro", error.message);
+    return;
+  }
+
+  await sb.from("fermento_historico").insert({
+    fermento_reuso_id: novo.id,
+    acao:"COLETA",
+    lote,
+    cerveja_nome: prod.cerveja_nome,
+    quantidade,
+    observacao
+  });
+
+  await sb.from("movimentacoes").insert({
+    tipo:"COLETA FERMENTO",
+    categoria:"FERMENTO",
+    item_nome: codigo,
+    quantidade,
+    unidade:"UN",
+    lote,
+    observacao
+  });
+
+  ["coletaBase","coletaQtd","coletaObs"].forEach(id => document.getElementById(id).value = "");
+  invalidar("fermentos","fermentosReusoBase","producao");
+  alert("Fermento coletado para reutilização.");
+  carregarFermentos(true);
+}
+
+async function salvarDescarteFermento() {
+  mostrarErro("descarteErro", "");
+  const id = document.getElementById("descarteFermento").value;
+  const quantidade = Number(document.getElementById("descarteQtd").value || 0);
+  const motivo = document.getElementById("descarteMotivo").value.trim();
+
+  if (!id || quantidade <= 0) {
+    mostrarErro("descarteErro", "Selecione o fermento e informe a quantidade.");
+    return;
+  }
+
+  const f = await validarFermentoReusoSuficiente(id, quantidade);
+  const novaQtd = Number(f.quantidade || 0) - quantidade;
+
+  const { error } = await sb.from("fermento_reuso").update({
+    quantidade: novaQtd,
+    status: novaQtd > 0 ? "DISPONIVEL" : "DESCARTADO"
+  }).eq("id", id);
+
+  if (error) {
+    mostrarErro("descarteErro", error.message);
+    return;
+  }
+
+  await sb.from("fermento_historico").insert({
+    fermento_reuso_id:id,
+    acao:"DESCARTE",
+    lote:f.lote_origem,
+    cerveja_nome:"",
+    quantidade,
+    observacao:motivo
+  });
+
+  await sb.from("movimentacoes").insert({
+    tipo:"DESCARTE FERMENTO",
+    categoria:"FERMENTO",
+    item_nome:f.codigo,
+    quantidade:-Math.abs(quantidade),
+    unidade:f.unidade || "UN",
+    lote:f.lote_origem,
+    observacao:motivo
+  });
+
+  ["descarteQtd","descarteMotivo"].forEach(id => document.getElementById(id).value = "");
+  invalidar("fermentos","fermentosReusoBase");
+  alert("Descarte registrado.");
+  carregarFermentos(true);
+}
+
+function prepararFormRetiradaPhenomena() {
+  prepararSelectCervejas("phenRetiradaCerveja");
+}
+
+async function carregarPhenomena(force=false) {
+  if (state.loaded.phenomena && !force) return;
+  await carregarBaseCadastros();
+
+  const [estoque, entradas, retiradas] = await Promise.all([
+    sb.from("estoque_cerveja").select("*").eq("origem","PHENOMENA").order("cerveja_nome"),
+    sb.from("phenomena_entradas").select("*").order("criado_em", { ascending:false }).limit(20),
+    sb.from("movimentacoes").select("*").eq("tipo","RETIRADA PHENOMENA").order("criado_em", { ascending:false }).limit(20)
+  ]);
+
+  const ebox = document.getElementById("estoquePhenomena");
+  const rows = estoque.data || [];
+  ebox.innerHTML = rows.length ? "" : '<div class="item"><span class="sub">Nenhum estoque Phenomena.</span></div>';
+  ordenarComZeradosFinal(rows, r => r.cerveja_nome, r => r.litros).forEach(r => {
+    ebox.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(r.cerveja_nome)}</strong>
+          <div class="sub">10L=${r.q10 || 0} • 20L=${r.q20 || 0} • 30L=${r.q30 || 0} • 50L=${r.q50 || 0}</div>
+        </div>
+        <span class="badge ${Number(r.litros || 0) <= 0 ? "zero" : ""}">${fmt(r.litros)} L</span>
+      </div>
+    `);
+  });
+
+  const inbox = document.getElementById("entradasPhenomena");
+  inbox.innerHTML = (entradas.data || []).length ? "" : '<div class="item"><span class="sub">Nenhuma entrada Phenomena.</span></div>';
+  (entradas.data || []).forEach(r => {
+    inbox.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(r.cerveja_nome)}</strong>
+          <div class="sub">${dataHoraBR(r.criado_em)} • ${escapeHtml(r.observacao || "")}</div>
+        </div>
+        <span class="badge">${fmt(r.litros)} L</span>
+      </div>
+    `);
+  });
+
+  const rout = document.getElementById("retiradasPhenomena");
+  rout.innerHTML = (retiradas.data || []).length ? "" : '<div class="item"><span class="sub">Nenhuma retirada registrada.</span></div>';
+  (retiradas.data || []).forEach(r => {
+    rout.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(r.item_nome)}</strong>
+          <div class="sub">${dataHoraBR(r.criado_em)} • ${escapeHtml(r.responsavel || "")}</div>
+          <div class="sub">${escapeHtml(r.observacao || "")}</div>
+        </div>
+        <span class="badge">${fmt(Math.abs(Number(r.quantidade || 0)))} L</span>
+      </div>
+    `);
+  });
+
+  state.loaded.phenomena = true;
+}
+
+async function salvarRetiradaPhenomena() {
+  mostrarErro("phenRetErro", "");
+  const cerveja_nome = document.getElementById("phenRetiradaCerveja").value;
+  const q10 = Number(document.getElementById("phenRetQ10").value || 0);
+  const q20 = Number(document.getElementById("phenRetQ20").value || 0);
+  const q30 = Number(document.getElementById("phenRetQ30").value || 0);
+  const q50 = Number(document.getElementById("phenRetQ50").value || 0);
+  const responsavel = document.getElementById("phenRetResp").value.trim();
+  const obs = document.getElementById("phenRetObs").value.trim();
+
+  if (!cerveja_nome || somaBarris(q10,q20,q30,q50) <= 0) {
+    mostrarErro("phenRetErro", "Selecione a cerveja e informe os barris.");
+    return;
+  }
+
+  const { data: rows, error: buscaErro } = await sb.from("estoque_cerveja")
+    .select("*")
+    .eq("cerveja_nome", cerveja_nome)
+    .eq("origem","PHENOMENA")
+    .limit(1);
+
+  if (buscaErro) {
+    mostrarErro("phenRetErro", buscaErro.message);
+    return;
+  }
+
+  const atual = rows && rows[0] ? rows[0] : { q10:0,q20:0,q30:0,q50:0 };
+  const faltas = [];
+  if (Number(atual.q10 || 0) < q10) faltas.push(`10L: solicitado ${q10}, disponível ${atual.q10 || 0}`);
+  if (Number(atual.q20 || 0) < q20) faltas.push(`20L: solicitado ${q20}, disponível ${atual.q20 || 0}`);
+  if (Number(atual.q30 || 0) < q30) faltas.push(`30L: solicitado ${q30}, disponível ${atual.q30 || 0}`);
+  if (Number(atual.q50 || 0) < q50) faltas.push(`50L: solicitado ${q50}, disponível ${atual.q50 || 0}`);
+
+  if (faltas.length) {
+    mostrarErro("phenRetErro", "Estoque Phenomena insuficiente:\n" + faltas.join("\n"));
+    return;
+  }
+
+  const nq10 = Number(atual.q10 || 0) - q10;
+  const nq20 = Number(atual.q20 || 0) - q20;
+  const nq30 = Number(atual.q30 || 0) - q30;
+  const nq50 = Number(atual.q50 || 0) - q50;
+  const litros = litrosBarris(q10,q20,q30,q50);
+  const cerveja = state.cervejas.find(c => c.nome === cerveja_nome);
+
+  await sb.from("estoque_cerveja").upsert({
+    cerveja_id: cerveja ? cerveja.id : null,
+    cerveja_nome,
+    origem:"PHENOMENA",
+    q10:nq10,q20:nq20,q30:nq30,q50:nq50,
+    litros:litrosBarris(nq10,nq20,nq30,nq50),
+    atualizado_em:new Date().toISOString()
+  }, { onConflict:"cerveja_nome,origem" });
+
+  await sb.from("movimentacoes").insert({
+    tipo:"RETIRADA PHENOMENA",
+    categoria:"CERVEJA",
+    item_nome:cerveja_nome,
+    quantidade:-Math.abs(litros),
+    unidade:"L",
+    origem:"PHENOMENA",
+    observacao:obs,
+    responsavel
+  });
+
+  ["phenRetQ10","phenRetQ20","phenRetQ30","phenRetQ50"].forEach(id => document.getElementById(id).value = "0");
+  ["phenRetResp","phenRetObs"].forEach(id => document.getElementById(id).value = "");
+  invalidar("phenomena","estoque","inicio","auditoria");
+  alert("Retirada Phenomena registrada.");
+  carregarPhenomena(true);
+  carregarInicio(true);
+}
+
+async function simularBaixaCervejaVirtual(cerveja_nome, q10, q20, q30, q50, estoqueVirtual) {
+  let rows = estoqueVirtual.get(cerveja_nome);
+
+  if (!rows) {
+    const { data, error } = await sb.from("estoque_cerveja")
+      .select("*")
+      .eq("cerveja_nome", cerveja_nome)
+      .in("origem", ["PRODUCAO","ITAPEMA","PHENOMENA"]);
+
+    if (error) throw error;
+
+    const ordem = ["PRODUCAO","ITAPEMA","PHENOMENA"];
+    rows = ordem.map(origem => (data || []).find(r => r.origem === origem) || {
+      cerveja_nome,
+      origem,
+      q10:0, q20:0, q30:0, q50:0,
+      litros:0
+    });
+    estoqueVirtual.set(cerveja_nome, rows);
+  }
+
+  const ordem = ["PRODUCAO","ITAPEMA","PHENOMENA"];
+  const pedidos = [
+    ["q10", q10, 10, "10L"],
+    ["q20", q20, 20, "20L"],
+    ["q30", q30, 30, "30L"],
+    ["q50", q50, 50, "50L"]
+  ];
+
+  const baixas = [];
+  const faltas = [];
+
+  for (const [campo, qtdPedida, litrosPorBarril, label] of pedidos) {
+    let restante = Number(qtdPedida || 0);
+    if (restante <= 0) continue;
+
+    for (const origem of ordem) {
+      if (restante <= 0) break;
+      const u = rows.find(r => r.origem === origem);
+      const disponivel = Number(u[campo] || 0);
+      const usar = Math.min(disponivel, restante);
+      if (usar > 0) {
+        u[campo] = disponivel - usar;
+        restante -= usar;
+        baixas.push({ origem, campo, label, quantidade: usar, litros: usar * litrosPorBarril });
+      }
+    }
+
+    if (restante > 0) {
+      const disponivelTotal = rows.reduce((s,r) => s + Number(r[campo] || 0), 0) + (Number(qtdPedida || 0) - restante);
+      faltas.push(`${cerveja_nome} ${label}: solicitado ${qtdPedida}, disponível ${disponivelTotal}, falta ${restante}`);
+    }
+  }
+
+  if (faltas.length) throw new Error("Estoque insuficiente:\n" + faltas.join("\n"));
+
+  rows.forEach(u => u.litros = litrosBarris(u.q10,u.q20,u.q30,u.q50));
+  const resumoPorOrigem = {};
+  baixas.forEach(b => resumoPorOrigem[b.origem] = (resumoPorOrigem[b.origem] || 0) + b.litros);
+
+  return { updates: rows, baixas, resumoPorOrigem };
+}
+
+async function carregarPainelDia(force=false) {
+  if (state.loaded.painelDia && !force) return;
+  await carregarBaseCadastros(true);
+  await carregarProducoesFermentando(true);
+
+  const [ec, ei] = await Promise.all([
+    sb.from("estoque_cerveja").select("*"),
+    sb.from("estoque_insumos").select("*")
+  ]);
+
+  const estoquePorCerveja = new Map();
+  state.cervejas.forEach(c => estoquePorCerveja.set(c.nome, 0));
+  (ec.data || []).forEach(r => estoquePorCerveja.set(r.cerveja_nome, (estoquePorCerveja.get(r.cerveja_nome) || 0) + Number(r.litros || 0)));
+
+  const estoqueInsumo = new Map();
+  state.insumos.forEach(i => estoqueInsumo.set(i.tipo+"|"+i.nome, { ...i, quantidade:0 }));
+  (ei.data || []).forEach(r => {
+    const base = estoqueInsumo.get(r.tipo+"|"+r.nome) || r;
+    estoqueInsumo.set(r.tipo+"|"+r.nome, { ...base, quantidade:Number(r.quantidade || 0), unidade:r.unidade });
+  });
+
+  const itens = [];
+
+  const cervejasZeradas = [...estoquePorCerveja.entries()].filter(([n,q]) => q <= 0).sort((a,b)=>a[0].localeCompare(b[0],"pt-BR"));
+  itens.push({ titulo:"🍺 Cervejas zeradas", linhas: cervejasZeradas.map(([n]) => n) });
+
+  const insumosZerados = [...estoqueInsumo.values()].filter(i => Number(i.quantidade || 0) <= 0).sort((a,b)=>a.tipo.localeCompare(b.tipo) || a.nome.localeCompare(b.nome,"pt-BR"));
+  itens.push({ titulo:"🌾 Insumos zerados", linhas: insumosZerados.map(i => `${i.tipo} — ${i.nome}`) });
+
+  const insumosBaixos = [...estoqueInsumo.values()].filter(i => Number(i.quantidade || 0) > 0 && Number(i.quantidade || 0) <= Number(i.estoque_minimo || 0)).sort((a,b)=>a.tipo.localeCompare(b.tipo) || a.nome.localeCompare(b.nome,"pt-BR"));
+  itens.push({ titulo:"⚠️ Insumos abaixo do mínimo", linhas: insumosBaixos.map(i => `${i.tipo} — ${i.nome}: ${fmt(i.quantidade,2)} ${i.unidade} / mínimo ${fmt(i.estoque_minimo,2)}`) });
+
+  const lotesAntigos = state.producoesFermentando.filter(p => {
+    const dias = Math.max(0, Math.floor((new Date() - new Date(p.data_producao + "T00:00:00")) / 86400000));
+    return dias >= 10;
+  });
+  itens.push({ titulo:"🧪 Lotes há 10+ dias em produção", linhas: lotesAntigos.map(p => {
+    const dias = Math.max(0, Math.floor((new Date() - new Date(p.data_producao + "T00:00:00")) / 86400000));
+    return `${p.lote} — ${p.cerveja_nome}: ${dias} dia(s)`;
+  }) });
+
+  const box = document.getElementById("painelDiaConteudo");
+  box.innerHTML = "";
+  itens.forEach(sec => {
+    box.insertAdjacentHTML("beforeend", `
+      <div class="item blocoVertical">
+        <strong>${escapeHtml(sec.titulo)}</strong>
+        <div class="sub">${sec.linhas.length ? sec.linhas.map(escapeHtml).join("<br>") : "Nada pendente."}</div>
+      </div>
+    `);
+  });
+
+  state.loaded.painelDia = true;
+}
+
+function prepararRelatorio() {
+  const input = document.getElementById("relatorioMes");
+  if (!input.value) {
+    const d = new Date();
+    input.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  }
+}
+
+async function carregarRelatorioMensal(force=false) {
+  const mes = document.getElementById("relatorioMes").value;
+  if (!mes) return;
+  const inicio = mes + "-01";
+  const dFim = new Date(inicio + "T00:00:00");
+  dFim.setMonth(dFim.getMonth() + 1);
+  const fim = dFim.toISOString().slice(0,10);
+
+  const [producoes, envases, saidas, insumos] = await Promise.all([
+    sb.from("producoes").select("*").gte("data_producao", inicio).lt("data_producao", fim),
+    sb.from("envases").select("*").gte("data_envase", inicio).lt("data_envase", fim),
+    sb.from("saidas").select("*").gte("data_saida", inicio).lt("data_saida", fim),
+    sb.from("producao_insumos").select("*").gte("criado_em", inicio).lt("criado_em", fim)
+  ]);
+
+  const litrosProduzidos = (producoes.data || []).reduce((s,r)=>s+Number(r.litros_produzidos||0),0);
+  const litrosEnvasados = (envases.data || []).reduce((s,r)=>s+Number(r.litros_total||0),0);
+  const perdas = (envases.data || []).reduce((s,r)=>s+Number(r.perda||0),0);
+  const litrosSaidas = (saidas.data || []).reduce((s,r)=>s+Number(r.litros||0),0);
+
+  const porCerveja = {};
+  (saidas.data || []).forEach(s => porCerveja[s.cerveja_nome] = (porCerveja[s.cerveja_nome] || 0) + Number(s.litros || 0));
+
+  const consumo = {};
+  (insumos.data || []).forEach(i => {
+    const k = `${i.tipo} — ${i.insumo_nome}`;
+    consumo[k] = (consumo[k] || 0) + Number(i.quantidade || 0);
+  });
+
+  const box = document.getElementById("relatorioConteudo");
+  box.innerHTML = `
+    <div class="gridCards">
+      <div class="card"><span>Produzido</span><strong>${fmt(litrosProduzidos)} L</strong></div>
+      <div class="card"><span>Envasado</span><strong>${fmt(litrosEnvasados)} L</strong></div>
+      <div class="card"><span>Perdas</span><strong>${fmt(perdas)} L</strong></div>
+      <div class="card"><span>Saídas</span><strong>${fmt(litrosSaidas)} L</strong></div>
+    </div>
+    <div class="item blocoVertical"><strong>Saídas por cerveja</strong><div class="sub">${Object.entries(porCerveja).length ? Object.entries(porCerveja).sort((a,b)=>a[0].localeCompare(b[0],"pt-BR")).map(([k,v])=>`${escapeHtml(k)}: ${fmt(v)} L`).join("<br>") : "Sem saídas."}</div></div>
+    <div class="item blocoVertical"><strong>Insumos consumidos</strong><div class="sub">${Object.entries(consumo).length ? Object.entries(consumo).sort((a,b)=>a[0].localeCompare(b[0],"pt-BR")).map(([k,v])=>`${escapeHtml(k)}: ${fmt(v,2)}`).join("<br>") : "Sem consumo."}</div></div>
+  `;
+}
+
+async function carregarAuditoria(force=false) {
+  if (state.loaded.auditoria && !force) return;
+
+  const [movs, ajustes] = await Promise.all([
+    sb.from("movimentacoes").select("*").order("criado_em", { ascending:false }).limit(30),
+    sb.from("ajustes_estoque").select("*").order("criado_em", { ascending:false }).limit(20)
+  ]);
+
+  const mbox = document.getElementById("auditoriaMovimentacoes");
+  mbox.innerHTML = (movs.data || []).length ? "" : '<div class="item"><span class="sub">Nenhuma movimentação.</span></div>';
+  (movs.data || []).forEach(m => {
+    mbox.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(m.tipo)} — ${escapeHtml(m.item_nome || "")}</strong>
+          <div class="sub">${dataHoraBR(m.criado_em)} • ${escapeHtml(m.categoria || "")} • ${escapeHtml(m.responsavel || "")}</div>
+          <div class="sub">${escapeHtml(m.observacao || "")}</div>
+        </div>
+        <span class="badge">${fmt(m.quantidade,2)} ${escapeHtml(m.unidade || "")}</span>
+      </div>
+    `);
+  });
+
+  const abox = document.getElementById("auditoriaAjustes");
+  abox.innerHTML = (ajustes.data || []).length ? "" : '<div class="item"><span class="sub">Nenhum ajuste.</span></div>';
+  (ajustes.data || []).forEach(a => {
+    abox.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(a.categoria)} — ${escapeHtml(a.item_nome)}</strong>
+          <div class="sub">${dataHoraBR(a.criado_em)} • ${escapeHtml(a.tipo_ou_origem || "")} • ${escapeHtml(a.responsavel || "")}</div>
+          <div class="sub">${escapeHtml(a.motivo || "")}</div>
+        </div>
+        <span class="badge">${fmt(a.diferenca,2)}</span>
+      </div>
+    `);
+  });
+
+  state.loaded.auditoria = true;
+}
+
+async function gerarBackupJson() {
+  const status = document.getElementById("backupStatus");
+  status.innerText = "Gerando backup...";
+
+  const tabelas = [
+    "cervejas","insumos","clientes","estoque_cerveja","estoque_insumos",
+    "producoes","producao_insumos","dry_hopping","envases","saidas",
+    "entradas_insumos","ajustes_estoque","fermento_reuso","fermento_historico",
+    "phenomena_entradas","movimentacoes","configuracoes","backups"
+  ];
+
+  const backup = {
+    gerado_em: new Date().toISOString(),
+    projeto: "ERP Cervejaria Supabase",
+    tabelas: {}
+  };
+
+  for (const tabela of tabelas) {
+    const { data, error } = await sb.from(tabela).select("*");
+    if (error) {
+      backup.tabelas[tabela] = { erro: error.message };
+    } else {
+      backup.tabelas[tabela] = data || [];
+    }
+  }
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const nome = "backup-erp-cervejaria-" + new Date().toISOString().slice(0,10) + ".json";
+  a.href = url;
+  a.download = nome;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  await sb.from("backups").insert({ descricao: "Backup JSON local gerado: " + nome });
+
+  status.innerText = "Backup gerado: " + nome;
+}
+
+
 function prepararFormAjusteCerveja() {
   prepararSelectCervejas("ajusteCerveja");
 }
@@ -1441,9 +2134,10 @@ async function salvarSaidaMultipla() {
   }
 
   const simulacoes = [];
+  const estoqueVirtual = new Map();
   try {
     for (const item of itens) {
-      const sim = await simularBaixaCerveja(item.cerveja_nome, item.q10, item.q20, item.q30, item.q50);
+      const sim = await simularBaixaCervejaVirtual(item.cerveja_nome, item.q10, item.q20, item.q30, item.q50, estoqueVirtual);
       simulacoes.push({ item, sim });
     }
   } catch(e) {
@@ -1548,6 +2242,13 @@ function escapeHtml(v) {
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
+}
+
+function dataHoraBR(v) {
+  if (!v) return "-";
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return d.toLocaleString("pt-BR", { dateStyle:"short", timeStyle:"short" });
 }
 
 function dataBR(v) {

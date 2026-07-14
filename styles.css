@@ -83,3 +83,7 @@ h3 { margin:18px 0 10px; }
 .saidaItemHeader strong { font-size:14px; }
 .smallDanger { background:#ef4444; padding:8px 10px; border-radius:10px; font-size:12px; }
 .resumoConfirmacao { white-space:pre-line; line-height:1.45; }
+
+.blocoVertical { display:block; }
+.blocoVertical strong { display:block; margin-bottom:8px; }
+.btnWarn { background:#f59e0b; color:#111827; width:100%; margin-bottom:10px; }
