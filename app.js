@@ -15,7 +15,9 @@ const state = {
   retornos: [],
   lotes: [],
   filtroLotes: "todos",
-  ultimoRelatorioMensal: null
+  ultimoRelatorioMensal: null,
+  comprasInsumosDetalhe: [],
+  consumoInsumosDetalhe: []
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -73,6 +75,7 @@ function mostrarTela(nome) {
     auditoria: "telaAuditoria",
     configuracoes: "telaConfiguracoes",
     backup: "telaBackup",
+    insumosDetalhe: "telaInsumosDetalhe",
     lotes: "telaLotes",
     clientes: "telaClientes",
     cadastros: "telaCadastros"
@@ -85,7 +88,7 @@ function mostrarTela(nome) {
   if (nome === "producao") btns[1].classList.add("active");
   if (nome === "estoque") btns[2].classList.add("active");
   if (nome === "saidas") btns[3].classList.add("active");
-  if (["mais","clientes","cadastros","lotes","fermentos","phenomena","retornos","painelDia","relatorio","auditoria","configuracoes","backup"].includes(nome)) btns[4].classList.add("active");
+  if (["mais","clientes","cadastros","insumosDetalhe","lotes","fermentos","phenomena","retornos","painelDia","relatorio","auditoria","configuracoes","backup"].includes(nome)) btns[4].classList.add("active");
 
   if (nome === "inicio") carregarInicio();
   if (nome === "producao") carregarProducao();
@@ -93,6 +96,7 @@ function mostrarTela(nome) {
   if (nome === "saidas") carregarSaidas();
   if (nome === "clientes") carregarClientes();
   if (nome === "cadastros") carregarCadastros();
+  if (nome === "insumosDetalhe") carregarInsumosDetalhe();
   if (nome === "lotes") carregarLotes();
   if (nome === "fermentos") carregarFermentos();
   if (nome === "phenomena") carregarPhenomena();
@@ -119,6 +123,7 @@ function toggleForm(id) {
     if (id === "formAjusteInsumo") prepararFormAjusteInsumo();
     if (id === "formSaida") prepararFormSaida();
     if (id === "formColetaFermento") prepararFormColetaFermento();
+    if (id === "formColetaFermentoProducao") prepararFormColetaFermentoProducao();
     if (id === "formDescarteFermento") prepararFormDescarteFermento();
     if (id === "formRetiradaPhenomena") prepararFormRetiradaPhenomena();
     if (id === "formPagamentoPhenomena") prepararFormPagamentoPhenomena();
@@ -158,7 +163,6 @@ async function carregarConfiguracoesBase(force=false) {
 
   if (!state.configuracoes.dias_alerta_barril_cliente) state.configuracoes.dias_alerta_barril_cliente = "21";
   if (!state.configuracoes.dias_alerta_lote_fermentando) state.configuracoes.dias_alerta_lote_fermentando = "10";
-  if (!state.configuracoes.dias_alerta_validade_insumos) state.configuracoes.dias_alerta_validade_insumos = "30";
 
   state.loaded.configuracoesBase = true;
 }
@@ -1029,7 +1033,6 @@ async function salvarEntradaInsumo() {
   const quantidade = Number(document.getElementById("entradaInsumoQtd").value || 0);
   const fornecedor = document.getElementById("entradaInsumoFornecedor").value.trim();
   const valor_total = Number(document.getElementById("entradaInsumoValor").value || 0);
-  const validade = document.getElementById("entradaInsumoValidade").value || null;
   const lote_fornecedor = document.getElementById("entradaInsumoLote").value.trim();
   const observacao = document.getElementById("entradaInsumoObs").value.trim();
 
@@ -1072,27 +1075,26 @@ async function salvarEntradaInsumo() {
     quantidade,
     fornecedor,
     valor_total,
-    validade,
     lote_fornecedor,
     observacao
   });
 
   await sb.from("movimentacoes").insert({
-    tipo:"ENTRADA INSUMO",
+    tipo:"COMPRA INSUMO",
     categoria:"INSUMO",
     item_nome:nome,
     quantidade,
     unidade,
-    origem:"COMPRA",
+    origem:fornecedor,
     observacao
   });
 
-  ["entradaInsumoQtd","entradaInsumoValor","entradaInsumoValidade","entradaInsumoLote","entradaInsumoObs"].forEach(id => document.getElementById(id).value = "");
-  invalidar("estoque","inicio");
+  ["entradaInsumoQtd","entradaInsumoFornecedor","entradaInsumoValor","entradaInsumoLote","entradaInsumoObs"].forEach(id => document.getElementById(id).value = "");
+  invalidar("estoque","inicio","insumosDetalhe","painelDia","auditoria");
   alert("Compra de insumo registrada.");
   carregarEstoque(true);
-  carregarInicio(true);
 }
+
 
 function mostrarSubEstoque(tipo) {
   document.getElementById("subEstoqueCervejas").style.display = tipo === "cervejas" ? "block" : "none";
@@ -1523,6 +1525,193 @@ function alternarTipoFermentoProducao() {
 }
 
 
+
+function datasFiltroInsumos() {
+  const ateInput = document.getElementById("insumoFiltroAte");
+  const deInput = document.getElementById("insumoFiltroDe");
+
+  if (ateInput && !ateInput.value) {
+    const hoje = new Date();
+    ateInput.value = hoje.toISOString().slice(0,10);
+  }
+
+  if (deInput && !deInput.value) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    deInput.value = d.toISOString().slice(0,10);
+  }
+
+  return {
+    de: deInput ? deInput.value : "",
+    ate: ateInput ? ateInput.value : ""
+  };
+}
+
+async function carregarInsumosDetalhe(force=false) {
+  if (state.loaded.insumosDetalhe && !force) return;
+  await carregarBaseCadastros(true);
+
+  const { de, ate } = datasFiltroInsumos();
+  const ateFim = ate ? new Date(ate + "T00:00:00") : null;
+  if (ateFim) ateFim.setDate(ateFim.getDate() + 1);
+  const ateQuery = ateFim ? ateFim.toISOString().slice(0,10) : "";
+
+  const [compras, consumo, estoque] = await Promise.all([
+    sb.from("entradas_insumos").select("*").gte("criado_em", de || "1900-01-01").lt("criado_em", ateQuery || "2999-12-31").order("criado_em", { ascending:false }),
+    sb.from("producao_insumos").select("*").gte("criado_em", de || "1900-01-01").lt("criado_em", ateQuery || "2999-12-31").order("criado_em", { ascending:false }),
+    sb.from("estoque_insumos").select("*")
+  ]);
+
+  state.comprasInsumosDetalhe = compras.data || [];
+  state.consumoInsumosDetalhe = consumo.data || [];
+
+  renderCardsInsumosDetalhe(estoque.data || []);
+  renderComprasInsumos();
+  renderConsumoInsumos();
+  renderFornecedoresInsumos();
+
+  state.loaded.insumosDetalhe = true;
+}
+
+function renderCardsInsumosDetalhe(estoqueRows) {
+  const totalCompras = state.comprasInsumosDetalhe.reduce((s,c) => s + Number(c.valor_total || 0), 0);
+
+  const estoqueMap = new Map();
+  estoqueRows.forEach(r => estoqueMap.set(r.tipo+"|"+r.nome, Number(r.quantidade || 0)));
+  const abaixo = state.insumos.filter(i => {
+    const qtd = estoqueMap.get(i.tipo+"|"+i.nome) || 0;
+    return Number(i.estoque_minimo || 0) > 0 && qtd <= Number(i.estoque_minimo || 0);
+  }).length;
+
+  document.getElementById("insumoCardValorCompras").innerText = fmtMoeda(totalCompras);
+  document.getElementById("insumoCardQtdCompras").innerText = state.comprasInsumosDetalhe.length;
+  document.getElementById("insumoCardAbaixoMin").innerText = abaixo;
+}
+
+
+function mostrarSubInsumosDetalhe(tipo) {
+  document.getElementById("subInsumosCompras").style.display = tipo === "compras" ? "block" : "none";
+  document.getElementById("subInsumosConsumo").style.display = tipo === "consumo" ? "block" : "none";
+  document.getElementById("subInsumosFornecedores").style.display = tipo === "fornecedores" ? "block" : "none";
+  document.querySelectorAll("#telaInsumosDetalhe .tab").forEach(t => t.classList.remove("active"));
+  const idx = tipo === "compras" ? 0 : tipo === "consumo" ? 1 : 2;
+  document.querySelectorAll("#telaInsumosDetalhe .tab")[idx].classList.add("active");
+}
+
+
+function renderComprasInsumos() {
+  const box = document.getElementById("comprasInsumosLista");
+  box.innerHTML = state.comprasInsumosDetalhe.length ? "" : '<div class="item"><span class="sub">Nenhuma compra no período.</span></div>';
+
+  state.comprasInsumosDetalhe.forEach(c => {
+    const custoUnit = Number(c.quantidade || 0) > 0 ? Number(c.valor_total || 0) / Number(c.quantidade || 0) : 0;
+    box.insertAdjacentHTML("beforeend", `
+      <div class="item searchable">
+        <div>
+          <strong>${escapeHtml(c.tipo)} — ${escapeHtml(c.nome)}</strong>
+          <div class="sub">${dataHoraBR(c.criado_em)} • ${fmt(c.quantidade,2)} ${escapeHtml(c.unidade)} • ${escapeHtml(c.fornecedor || "Sem fornecedor")}</div>
+          <div class="sub">Lote fornecedor: ${escapeHtml(c.lote_fornecedor || "-")}</div>
+          <div class="sub">Custo unitário: ${fmtMoeda(custoUnit)} / ${escapeHtml(c.unidade)}</div>
+        </div>
+        <span class="badge">${fmtMoeda(c.valor_total)}</span>
+      </div>
+    `);
+  });
+}
+
+
+function renderValidadeInsumos() {
+  return;
+}
+
+
+function renderConsumoInsumos() {
+  const box = document.getElementById("consumoInsumosLista");
+  box.innerHTML = state.consumoInsumosDetalhe.length ? "" : '<div class="item"><span class="sub">Nenhum consumo no período.</span></div>';
+
+  state.consumoInsumosDetalhe.forEach(c => {
+    box.insertAdjacentHTML("beforeend", `
+      <div class="item searchable">
+        <div>
+          <strong>${escapeHtml(c.tipo)} — ${escapeHtml(c.insumo_nome)}</strong>
+          <div class="sub">${dataHoraBR(c.criado_em)} • Lote ${escapeHtml(c.lote || "-")} • ${escapeHtml(c.etapa || "-")}</div>
+        </div>
+        <span class="badge">${fmt(c.quantidade,2)} ${escapeHtml(c.unidade)}</span>
+      </div>
+    `);
+  });
+}
+
+function renderFornecedoresInsumos() {
+  const box = document.getElementById("fornecedoresInsumosLista");
+  const mapa = new Map();
+
+  state.comprasInsumosDetalhe.forEach(c => {
+    const fornecedor = c.fornecedor || "Sem fornecedor";
+    const atual = mapa.get(fornecedor) || { fornecedor, valor:0, compras:0, itens:{} };
+    atual.valor += Number(c.valor_total || 0);
+    atual.compras += 1;
+    atual.itens[c.nome] = (atual.itens[c.nome] || 0) + Number(c.quantidade || 0);
+    mapa.set(fornecedor, atual);
+  });
+
+  const rows = [...mapa.values()].sort((a,b) => b.valor - a.valor);
+  box.innerHTML = rows.length ? "" : '<div class="item"><span class="sub">Nenhum fornecedor no período.</span></div>';
+
+  rows.forEach(f => {
+    const itens = Object.entries(f.itens).sort((a,b)=>a[0].localeCompare(b[0],"pt-BR")).slice(0,6).map(([k,v]) => `${k}: ${fmt(v,2)}`).join("<br>");
+    box.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(f.fornecedor)}</strong>
+          <div class="sub">${f.compras} compra(s)</div>
+          <div class="sub">${itens || ""}</div>
+        </div>
+        <span class="badge">${fmtMoeda(f.valor)}</span>
+      </div>
+    `);
+  });
+}
+
+function exportarComprasInsumosCsv() {
+  if (!state.comprasInsumosDetalhe.length) {
+    alert("Não há compras para exportar.");
+    return;
+  }
+
+  const linhas = [["Data","Tipo","Insumo","Unidade","Quantidade","Fornecedor","Valor total","Lote fornecedor","Observação"]];
+  state.comprasInsumosDetalhe.forEach(c => {
+    linhas.push([c.criado_em, c.tipo, c.nome, c.unidade, c.quantidade, c.fornecedor, c.valor_total, c.lote_fornecedor, c.observacao]);
+  });
+  baixarCsv("compras-insumos.csv", linhas);
+}
+
+
+function exportarConsumoInsumosCsv() {
+  if (!state.consumoInsumosDetalhe.length) {
+    alert("Não há consumo para exportar.");
+    return;
+  }
+
+  const linhas = [["Data","Lote","Tipo","Insumo","Unidade","Quantidade","Etapa"]];
+  state.consumoInsumosDetalhe.forEach(c => {
+    linhas.push([c.criado_em, c.lote, c.tipo, c.insumo_nome, c.unidade, c.quantidade, c.etapa]);
+  });
+  baixarCsv("consumo-insumos.csv", linhas);
+}
+
+function baixarCsv(nome, linhas) {
+  const csv = linhas.map(row => row.map(v => `"${String(v ?? "").replaceAll('"','""')}"`).join(";")).join("\\n");
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nome;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
 async function carregarLotes(force=false) {
   if (state.loaded.lotes && !force) return;
 
@@ -1737,6 +1926,100 @@ async function usarFermentoReusoNaProducao(id, quantidade, lote, cerveja_nome, p
     observacao:`Usado na produção ${cerveja_nome}`
   });
 }
+
+
+function prepararFormColetaFermentoProducao() {
+  prepararSelectLotes("coletaProdLote");
+  const lote = document.getElementById("coletaProdLote");
+  if (lote) {
+    lote.onchange = function() {
+      const prod = state.producoesFermentando.find(p => p.lote === lote.value);
+      if (prod && prod.fermento_nome) document.getElementById("coletaProdBase").value = prod.fermento_nome;
+    };
+
+    if (lote.value) {
+      const prod = state.producoesFermentando.find(p => p.lote === lote.value);
+      if (prod && prod.fermento_nome) document.getElementById("coletaProdBase").value = prod.fermento_nome;
+    }
+  }
+}
+
+async function salvarColetaFermentoProducao() {
+  mostrarErro("coletaProdErro", "");
+  const lote = document.getElementById("coletaProdLote").value;
+  const base = document.getElementById("coletaProdBase").value.trim();
+  const quantidade = Number(document.getElementById("coletaProdQtd").value || 0);
+  const observacao = document.getElementById("coletaProdObs").value.trim();
+
+  if (!lote || !base || quantidade <= 0) {
+    mostrarErro("coletaProdErro", "Informe lote, fermento base e quantidade coletada.");
+    return;
+  }
+
+  const prod = state.producoesFermentando.find(p => p.lote === lote);
+  if (!prod) {
+    mostrarErro("coletaProdErro", "Lote não encontrado.");
+    return;
+  }
+
+  let geracao = 2;
+  let historico = prod.cerveja_nome;
+
+  if (prod.fermento_reuso_id) {
+    const { data: fOrigem } = await sb.from("fermento_reuso").select("*").eq("id", prod.fermento_reuso_id).single();
+    if (fOrigem) {
+      geracao = Number(fOrigem.geracao || 1) + 1;
+      historico = fOrigem.historico_cervejas
+        ? (fOrigem.historico_cervejas.includes(prod.cerveja_nome) ? fOrigem.historico_cervejas : fOrigem.historico_cervejas + " → " + prod.cerveja_nome)
+        : prod.cerveja_nome;
+    }
+  }
+
+  const codigo = `F-${lote}-G${geracao}-${Date.now().toString().slice(-4)}`;
+
+  const { data: novo, error } = await sb.from("fermento_reuso").insert({
+    codigo,
+    fermento_base: base,
+    geracao,
+    quantidade,
+    unidade:"UN",
+    status:"DISPONIVEL",
+    historico_cervejas: historico,
+    lote_origem:lote,
+    observacao
+  }).select().single();
+
+  if (error) {
+    mostrarErro("coletaProdErro", error.message);
+    return;
+  }
+
+  await sb.from("fermento_historico").insert({
+    fermento_reuso_id: novo.id,
+    acao:"COLETA",
+    lote,
+    cerveja_nome: prod.cerveja_nome,
+    quantidade,
+    observacao
+  });
+
+  await sb.from("movimentacoes").insert({
+    tipo:"COLETA FERMENTO",
+    categoria:"FERMENTO",
+    item_nome: codigo,
+    quantidade,
+    unidade:"UN",
+    lote,
+    observacao
+  });
+
+  ["coletaProdBase","coletaProdQtd","coletaProdObs"].forEach(id => document.getElementById(id).value = "");
+  invalidar("fermentos","fermentosReusoBase","producao","lotes","inicio","auditoria");
+  alert("Fermento coletado para reutilização.");
+  carregarProducoesFermentando(true);
+  carregarProducao(true);
+}
+
 
 function prepararFormColetaFermento() {
   prepararSelectLotes("coletaLote");
@@ -2328,7 +2611,6 @@ async function carregarConfiguracoes(force=false) {
 
   document.getElementById("configDiasBarrilCliente").value = getConfigNumero("dias_alerta_barril_cliente", 21);
   document.getElementById("configDiasLoteFermentando").value = getConfigNumero("dias_alerta_lote_fermentando", 10);
-  document.getElementById("configDiasValidadeInsumos").value = getConfigNumero("dias_alerta_validade_insumos", 30);
 
   state.loaded.configuracoes = true;
 }
@@ -2338,8 +2620,7 @@ async function salvarConfiguracoes() {
 
   const payload = [
     { chave:"dias_alerta_barril_cliente", valor:String(Number(document.getElementById("configDiasBarrilCliente").value || 21)), atualizado_em:new Date().toISOString() },
-    { chave:"dias_alerta_lote_fermentando", valor:String(Number(document.getElementById("configDiasLoteFermentando").value || 10)), atualizado_em:new Date().toISOString() },
-    { chave:"dias_alerta_validade_insumos", valor:String(Number(document.getElementById("configDiasValidadeInsumos").value || 30)), atualizado_em:new Date().toISOString() }
+    { chave:"dias_alerta_lote_fermentando", valor:String(Number(document.getElementById("configDiasLoteFermentando").value || 10)), atualizado_em:new Date().toISOString() }
   ];
 
   const { error } = await sb.from("configuracoes").upsert(payload, { onConflict:"chave" });
@@ -2500,12 +2781,11 @@ async function carregarPainelDia(force=false) {
   const diasBarrilCliente = getConfigNumero("dias_alerta_barril_cliente", 21);
   const diasLoteFermentando = getConfigNumero("dias_alerta_lote_fermentando", 10);
 
-  const [ec, ei, saidasPainel, retornosPainel, entradasValidade] = await Promise.all([
+  const [ec, ei, saidasPainel, retornosPainel] = await Promise.all([
     sb.from("estoque_cerveja").select("*"),
     sb.from("estoque_insumos").select("*"),
     sb.from("saidas").select("*").order("data_saida", { ascending:true }),
-    sb.from("retornos").select("*"),
-    sb.from("entradas_insumos").select("*").not("validade","is",null).order("validade", { ascending:true })
+    sb.from("retornos").select("*")
   ]);
 
   const estoquePorCerveja = new Map();
@@ -2567,27 +2847,6 @@ async function carregarPainelDia(force=false) {
     linhas: alertasBarris.map(c => `${c.cliente}: ${c.abertoAproximado} barril(is) em aberto aprox. • saída mais antiga ${dataBR(c.dataMaisAntiga)}`)
   });
 
-  const diasValidade = getConfigNumero("dias_alerta_validade_insumos", 30);
-  const hoje = new Date();
-  hoje.setHours(0,0,0,0);
-  const limiteValidade = new Date(hoje);
-  limiteValidade.setDate(limiteValidade.getDate() + diasValidade);
-
-  const validadesProximas = (entradasValidade.data || []).filter(e => {
-    const d = new Date(String(e.validade) + "T00:00:00");
-    return d <= limiteValidade;
-  }).slice(0, 20);
-
-  itens.push({
-    titulo:`📅 Insumos vencendo em até ${diasValidade} dias`,
-    linhas: validadesProximas.map(e => {
-      const d = new Date(String(e.validade) + "T00:00:00");
-      const dias = Math.ceil((d - hoje) / 86400000);
-      const status = dias < 0 ? `vencido há ${Math.abs(dias)} dia(s)` : `vence em ${dias} dia(s)`;
-      return `${e.tipo} — ${e.nome}: ${fmt(e.quantidade,2)} ${e.unidade} • validade ${dataBR(e.validade)} • ${status}`;
-    })
-  });
-
   const box = document.getElementById("painelDiaConteudo");
   box.innerHTML = "";
   itens.forEach(sec => {
@@ -2601,6 +2860,7 @@ async function carregarPainelDia(force=false) {
 
   state.loaded.painelDia = true;
 }
+
 
 function prepararRelatorio() {
   const input = document.getElementById("relatorioMes");

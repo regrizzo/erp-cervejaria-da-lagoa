@@ -142,3 +142,20 @@ h3 { margin:18px 0 10px; }
 @media (min-width:640px) {
   .fichaGrid { grid-template-columns:1fr 1fr; }
 }
+
+.valorPositivo {
+  color:#166534;
+  font-weight:900;
+}
+.valorNegativo {
+  color:#991b1b;
+  font-weight:900;
+}
+.statusVencido {
+  background:#fee2e2 !important;
+  color:#991b1b !important;
+}
+.statusProximo {
+  background:#fef3c7 !important;
+  color:#92400e !important;
+}

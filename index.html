@@ -39,7 +39,7 @@
     <header class="topbar">
       <div>
         <div class="appTitle">ERP Cervejaria</div>
-        <div class="appSub">Supabase • V11 ficha de lote</div>
+        <div class="appSub">Supabase • V13 fermento sem validade</div>
       </div>
       <button class="btnGhost" onclick="logout()">Sair</button>
     </header>
@@ -77,6 +77,7 @@
           <button class="btnMain" onclick="toggleForm('formProducao')">+ Nova Produção</button>
           <button class="btnSecondary" onclick="toggleForm('formDryHop')">🌿 Dry Hopping</button>
           <button class="btnSuccess" onclick="toggleForm('formEnvase')">🍺 Envase</button>
+          <button class="btnSecondary" onclick="toggleForm('formColetaFermentoProducao')">🧫 Coletar fermento</button>
         </div>
 
         <div id="formProducao" class="formBox" style="display:none;">
@@ -177,6 +178,26 @@
           <div id="envaseErro" class="erro"></div>
         </div>
 
+        <div id="formColetaFermentoProducao" class="formBox" style="display:none;">
+          <h3>Coletar fermento</h3>
+          <p class="muted">Use após a fermentação para guardar fermento reutilizável de um lote.</p>
+
+          <label>Lote fermentando</label>
+          <select id="coletaProdLote"></select>
+
+          <label>Fermento base</label>
+          <input id="coletaProdBase" placeholder="Ex: US-05, W34/70">
+
+          <label>Quantidade coletada</label>
+          <input id="coletaProdQtd" type="number" min="0" step="0.001" placeholder="UN">
+
+          <label>Observação</label>
+          <textarea id="coletaProdObs"></textarea>
+
+          <button onclick="salvarColetaFermentoProducao()">Salvar coleta</button>
+          <div id="coletaProdErro" class="erro"></div>
+        </div>
+
         <h3>Cervejas em produção</h3>
         <input class="search" id="buscaProducao" placeholder="Buscar lote ou cerveja..." oninput="filtrarLista('listaProducoes', this.value)">
         <div id="listaProducoes" class="lista"></div>
@@ -244,9 +265,6 @@
 
           <label>Valor total</label>
           <input id="entradaInsumoValor" type="number" min="0" step="0.01">
-
-          <label>Validade</label>
-          <input id="entradaInsumoValidade" type="date">
 
           <label>Lote fornecedor</label>
           <input id="entradaInsumoLote">
@@ -379,6 +397,7 @@
         <div class="maisGrid">
           <div class="maisCard" onclick="mostrarTela('clientes')"><strong>👥 Clientes</strong><span>Cadastro e consulta</span></div>
           <div class="maisCard" onclick="mostrarTela('cadastros')"><strong>🗂️ Cadastros</strong><span>Cervejas e insumos</span></div>
+          <div class="maisCard" onclick="mostrarTela('insumosDetalhe')"><strong>🌾 Insumos</strong><span>Compras e consumo</span></div>
           <div class="maisCard" onclick="mostrarTela('lotes')"><strong>🧪 Lotes</strong><span>Ficha completa e histórico</span></div>
           <div class="maisCard" onclick="mostrarTela('fermentos')"><strong>🧫 Fermentos</strong><span>Coleta, reuso e descarte</span></div>
           <div class="maisCard" onclick="mostrarTela('phenomena')"><strong>💰 Phenomena</strong><span>Entradas, estoque e retiradas</span></div>
@@ -388,6 +407,62 @@
           <div class="maisCard" onclick="mostrarTela('auditoria')"><strong>🧾 Auditoria</strong><span>Últimos lançamentos</span></div>
           <div class="maisCard" onclick="mostrarTela('configuracoes')"><strong>⚙️ Configurações</strong><span>Regras e parâmetros</span></div>
           <div class="maisCard" onclick="mostrarTela('backup')"><strong>💾 Backup</strong><span>Exportar dados em JSON</span></div>
+        </div>
+      </section>
+
+      <section id="telaInsumosDetalhe" class="tela">
+        <div class="sectionHeader">
+          <h2>Insumos</h2>
+          <button class="btnSmall" onclick="carregarInsumosDetalhe(true)">Atualizar</button>
+        </div>
+
+        <div class="actionGrid">
+          <button class="btnMain" onclick="exportarComprasInsumosCsv()">Exportar compras CSV</button>
+          <button class="btnSecondary" onclick="exportarConsumoInsumosCsv()">Exportar consumo CSV</button>
+        </div>
+
+        <div class="gridCards">
+          <div class="card"><span>Total comprado no período</span><strong id="insumoCardValorCompras">R$ 0,00</strong></div>
+          <div class="card"><span>Compras registradas</span><strong id="insumoCardQtdCompras">0</strong></div>
+          <div class="card"><span>Abaixo do mínimo</span><strong id="insumoCardAbaixoMin">0</strong></div>
+        </div>
+
+        <div class="box">
+          <h3>Filtro</h3>
+          <div class="linha2">
+            <div>
+              <label>De</label>
+              <input id="insumoFiltroDe" type="date">
+            </div>
+            <div>
+              <label>Até</label>
+              <input id="insumoFiltroAte" type="date">
+            </div>
+          </div>
+          <label>Buscar</label>
+          <input class="search" id="buscaInsumosDetalhe" placeholder="Insumo, fornecedor, lote..." oninput="filtrarLista('comprasInsumosLista', this.value); filtrarLista('consumoInsumosLista', this.value);">
+          <button onclick="carregarInsumosDetalhe(true)">Aplicar filtro</button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" onclick="mostrarSubInsumosDetalhe('compras')">Compras</button>
+          <button class="tab" onclick="mostrarSubInsumosDetalhe('consumo')">Consumo</button>
+          <button class="tab" onclick="mostrarSubInsumosDetalhe('fornecedores')">Fornecedores</button>
+        </div>
+
+        <div id="subInsumosCompras">
+          <h3>Compras de insumos</h3>
+          <div id="comprasInsumosLista" class="lista"></div>
+        </div>
+
+        <div id="subInsumosConsumo" style="display:none;">
+          <h3>Consumo em produção / dry hopping</h3>
+          <div id="consumoInsumosLista" class="lista"></div>
+        </div>
+
+        <div id="subInsumosFornecedores" style="display:none;">
+          <h3>Resumo por fornecedor</h3>
+          <div id="fornecedoresInsumosLista" class="lista"></div>
         </div>
       </section>
 
@@ -673,9 +748,6 @@
 
           <label>Dias para alerta de lote fermentando</label>
           <input id="configDiasLoteFermentando" type="number" min="1" step="1">
-
-          <label>Dias para alerta de validade de insumos</label>
-          <input id="configDiasValidadeInsumos" type="number" min="1" step="1">
 
           <button onclick="salvarConfiguracoes()">Salvar configurações</button>
           <div id="configErro" class="erro"></div>
