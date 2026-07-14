@@ -1,5 +1,5 @@
 
-const APP_BUILD = "dashboard-estavel";
+const APP_BUILD = "lotes-por-cerveja-20260714";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -578,10 +578,18 @@ function prepararSelectLotes(id) {
   sel.innerHTML = '<option value="">Selecionar lote...</option>';
   state.producoesFermentando.forEach(p => {
     const op = document.createElement("option");
-    op.value = p.lote;
-    op.textContent = `${p.lote} — ${p.cerveja_nome} (${fmt(p.litros_produzidos)}L)`;
+    op.value = p.id;
+    op.dataset.lote = p.lote;
+    op.dataset.cerveja = p.cerveja_nome;
+    op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${fmt(p.litros_produzidos)}L)`;
     sel.appendChild(op);
   });
+}
+
+function getProducaoSelecionada(selectId) {
+  const id = document.getElementById(selectId)?.value;
+  if (!id) return null;
+  return state.producoesFermentando.find(p => p.id === id) || null;
 }
 
 async function prepararFormProducao() {
@@ -835,6 +843,22 @@ async function salvarProducao() {
   const fermentoTipoSalvar = tipoFermentoProducao === "REUSO" ? "REUSO" : (fermentoNome ? "ESTOQUE" : null);
   const fermentoNomeSalvar = tipoFermentoProducao === "REUSO" ? (fermentoReuso ? fermentoReuso.codigo : "FERMENTO REUSO") : (fermentoNome || null);
 
+  const { data: loteExistente, error: loteExistenteErro } = await sb.from("producoes")
+    .select("id,lote,cerveja_nome")
+    .eq("cerveja_nome", cerveja_nome)
+    .eq("lote", lote)
+    .limit(1);
+
+  if (loteExistenteErro) {
+    mostrarErro("prodErro", loteExistenteErro.message);
+    return;
+  }
+
+  if (loteExistente && loteExistente.length) {
+    mostrarErro("prodErro", `A cerveja ${cerveja_nome} já possui o lote ${lote}. Use outro número/nome de lote para essa mesma cerveja.`);
+    return;
+  }
+
   const { data: prod, error } = await sb.from("producoes").insert({
     lote,
     cerveja_nome,
@@ -896,18 +920,13 @@ async function salvarProducao() {
 
 async function salvarDryHop() {
   mostrarErro("dryErro", "");
-  const lote = document.getElementById("dryLote").value;
+  const prod = getProducaoSelecionada("dryLote");
+  const lote = prod ? prod.lote : "";
   const obs = document.getElementById("dryObs").value.trim();
   const itens = coletarLinhasInsumos("dryLupulos","LUPULO");
 
-  if (!lote || !itens.length) {
+  if (!prod || !itens.length) {
     mostrarErro("dryErro", "Selecione o lote e pelo menos um lúpulo.");
-    return;
-  }
-
-  const prod = state.producoesFermentando.find(p => p.lote === lote);
-  if (!prod) {
-    mostrarErro("dryErro", "Lote não encontrado.");
     return;
   }
 
@@ -953,8 +972,8 @@ async function salvarDryHop() {
 }
 
 function atualizarResumoEnvase() {
-  const lote = document.getElementById("envaseLote")?.value;
-  const prod = state.producoesFermentando.find(p => p.lote === lote);
+  const prod = getProducaoSelecionada("envaseLote");
+  const lote = prod ? prod.lote : "";
   const litrosFull = litrosBarris(
     document.getElementById("envaseQ10")?.value,
     document.getElementById("envaseQ20")?.value,
@@ -981,7 +1000,8 @@ function atualizarResumoEnvase() {
 
 async function salvarEnvase() {
   mostrarErro("envaseErro", "");
-  const lote = document.getElementById("envaseLote").value;
+  const prod = getProducaoSelecionada("envaseLote");
+  const lote = prod ? prod.lote : "";
   const origem = document.getElementById("envaseOrigem").value;
   const q10 = Number(document.getElementById("envaseQ10").value || 0);
   const q20 = Number(document.getElementById("envaseQ20").value || 0);
@@ -990,14 +1010,8 @@ async function salvarEnvase() {
   const incompleto = Number(document.getElementById("envaseIncompleto").value || 0);
   const obs = document.getElementById("envaseObs").value.trim();
 
-  if (!lote || (somaBarris(q10,q20,q30,q50) <= 0 && incompleto <= 0)) {
+  if (!prod || (somaBarris(q10,q20,q30,q50) <= 0 && incompleto <= 0)) {
     mostrarErro("envaseErro", "Selecione o lote e informe o envase.");
-    return;
-  }
-
-  const prod = state.producoesFermentando.find(p => p.lote === lote);
-  if (!prod) {
-    mostrarErro("envaseErro", "Lote não encontrado.");
     return;
   }
 
@@ -1007,7 +1021,7 @@ async function salvarEnvase() {
 
   const { data: envasesAnteriores, error: envasesAnterioresErro } = await sb.from("envases")
     .select("litros_total")
-    .eq("lote", lote);
+    .eq("producao_id", prod.id);
 
   if (envasesAnterioresErro) {
     mostrarErro("envaseErro", envasesAnterioresErro.message);
@@ -1879,7 +1893,7 @@ async function abrirFichaLote(id) {
     sb.from("producao_insumos").select("*").eq("producao_id", id).order("criado_em", { ascending:true }),
     sb.from("dry_hopping").select("*").eq("producao_id", id).order("criado_em", { ascending:true }),
     sb.from("envases").select("*").eq("producao_id", id).order("criado_em", { ascending:true }),
-    sb.from("fermento_historico").select("*").eq("lote", lote.lote).order("criado_em", { ascending:true })
+    sb.from("fermento_historico").select("*").eq("lote", lote.lote).eq("cerveja_nome", lote.cerveja_nome).order("criado_em", { ascending:true })
   ]);
 
   const insumosRows = insumos.data || [];
@@ -2009,7 +2023,7 @@ function prepararFormColetaFermento() {
   const lote = document.getElementById("coletaLote");
   if (lote) {
     lote.onchange = function() {
-      const prod = state.producoesFermentando.find(p => p.lote === lote.value);
+      const prod = getProducaoSelecionada("coletaLote");
       if (prod && prod.fermento_nome) document.getElementById("coletaBase").value = prod.fermento_nome;
     };
   }
@@ -2066,19 +2080,14 @@ async function carregarFermentos(force=false) {
 
 async function salvarColetaFermento() {
   mostrarErro("coletaErro", "");
-  const lote = document.getElementById("coletaLote").value;
+  const prod = getProducaoSelecionada("coletaLote");
+  const lote = prod ? prod.lote : "";
   const base = document.getElementById("coletaBase").value.trim();
   const quantidade = Number(document.getElementById("coletaQtd").value || 0);
   const observacao = document.getElementById("coletaObs").value.trim();
 
-  if (!lote || !base || quantidade <= 0) {
+  if (!prod || !base || quantidade <= 0) {
     mostrarErro("coletaErro", "Informe lote, fermento base e quantidade coletada.");
-    return;
-  }
-
-  const prod = state.producoesFermentando.find(p => p.lote === lote);
-  if (!prod) {
-    mostrarErro("coletaErro", "Lote não encontrado.");
     return;
   }
 
@@ -2095,7 +2104,8 @@ async function salvarColetaFermento() {
     }
   }
 
-  const codigo = `F-${lote}-G${geracao}-${Date.now().toString().slice(-4)}`;
+  const codigoBase = `${prod.cerveja_nome}-${lote}`.replace(/[^a-zA-Z0-9]/g, "").slice(0, 22) || lote;
+  const codigo = `F-${codigoBase}-G${geracao}-${Date.now().toString().slice(-4)}`;
 
   const { data: novo, error } = await sb.from("fermento_reuso").insert({
     codigo,
