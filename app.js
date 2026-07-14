@@ -182,6 +182,107 @@ function somaBarris(q10,q20,q30,q50) {
   return (Number(q10)||0) + (Number(q20)||0) + (Number(q30)||0) + (Number(q50)||0);
 }
 
+
+function agruparSoma(rows, keyFn, valueFn) {
+  const mapa = new Map();
+  (rows || []).forEach(r => {
+    const k = keyFn(r) || "-";
+    mapa.set(k, (mapa.get(k) || 0) + Number(valueFn(r) || 0));
+  });
+  return [...mapa.entries()].map(([nome, valor]) => ({ nome, valor }));
+}
+
+function renderBarChart(id, dados, opts={}) {
+  const box = document.getElementById(id);
+  if (!box) return;
+
+  const suffix = opts.suffix || "";
+  const casas = opts.casas ?? 0;
+  const limite = opts.limite || 8;
+  const rows = [...(dados || [])]
+    .filter(d => Number(d.valor || 0) > 0)
+    .sort((a,b) => Number(b.valor || 0) - Number(a.valor || 0))
+    .slice(0, limite);
+
+  if (!rows.length) {
+    box.innerHTML = '<div class="emptyChart">Sem dados para exibir.</div>';
+    return;
+  }
+
+  const max = Math.max(...rows.map(r => Number(r.valor || 0)), 1);
+  box.innerHTML = "";
+  rows.forEach(r => {
+    const pct = Math.max(2, Math.round((Number(r.valor || 0) / max) * 100));
+    box.insertAdjacentHTML("beforeend", `
+      <div class="barRow">
+        <div class="barLabel" title="${escapeHtml(r.nome)}">${escapeHtml(r.nome)}</div>
+        <div class="barTrack"><div class="barFill" style="width:${pct}%"></div></div>
+        <div class="barValue">${fmt(r.valor, casas)}${suffix}</div>
+      </div>
+    `);
+  });
+}
+
+function renderDonutOrigem(id, dados) {
+  const box = document.getElementById(id);
+  if (!box) return;
+
+  const cores = ["#0ea5e9","#22c55e","#f59e0b","#8b5cf6","#ef4444"];
+  const rows = [...(dados || [])].filter(d => Number(d.valor || 0) > 0);
+  const total = rows.reduce((s,r) => s + Number(r.valor || 0), 0);
+
+  if (!rows.length || total <= 0) {
+    box.innerHTML = '<div class="emptyChart">Sem estoque por origem.</div>';
+    return;
+  }
+
+  let grauAtual = 0;
+  const partes = rows.map((r, idx) => {
+    const graus = (Number(r.valor || 0) / total) * 360;
+    const ini = grauAtual;
+    const fim = grauAtual + graus;
+    grauAtual = fim;
+    return `${cores[idx % cores.length]} ${ini}deg ${fim}deg`;
+  }).join(",");
+
+  box.innerHTML = `
+    <div class="donut" style="background:conic-gradient(${partes})">
+      <div class="donutCenter">${fmt(total)} L</div>
+    </div>
+    <div class="legendList">
+      ${rows.map((r,idx) => `
+        <div class="legendItem">
+          <span><span class="legendDot" style="background:${cores[idx % cores.length]}"></span>${escapeHtml(r.nome)}</span>
+          <strong>${fmt(r.valor)} L</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function mesesRecentes(qtd=6) {
+  const out = [];
+  const hoje = new Date();
+  for (let i=qtd-1; i>=0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const chave = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    const rotulo = `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getFullYear()).slice(-2)}`;
+    out.push({ chave, rotulo, valor:0 });
+  }
+  return out;
+}
+
+function agruparPorMes(rows, campoData, campoValor, qtd=6) {
+  const meses = mesesRecentes(qtd);
+  const mapa = new Map(meses.map(m => [m.chave, m]));
+  (rows || []).forEach(r => {
+    const data = String(r[campoData] || "").slice(0,7);
+    if (mapa.has(data)) mapa.get(data).valor += Number(r[campoValor] || 0);
+  });
+  return meses.map(m => ({ nome:m.rotulo, valor:m.valor }));
+}
+
+
 function novoUUID() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
@@ -206,54 +307,174 @@ function invalidar(...nomes) {
 
 async function carregarInicio(force=false) {
   if (state.loaded.inicio && !force) return;
+  await carregarBaseCadastros(true);
+  await carregarProducoesFermentando(true);
+  await carregarConfiguracoesBase(true);
 
-  const [estoque, producoes, clientes, insumos, saidas, retornos] = await Promise.all([
-    sb.from("estoque_cerveja").select("litros"),
-    sb.from("producoes").select("id,status").eq("status","FERMENTANDO"),
+  const [estoque, producoes, envases, clientes, insumosEstoque, saidas, retornos, movs, entradasInsumos] = await Promise.all([
+    sb.from("estoque_cerveja").select("*"),
+    sb.from("producoes").select("*").order("data_producao", { ascending:false }),
+    sb.from("envases").select("*").order("data_envase", { ascending:false }),
     sb.from("clientes").select("id", { count:"exact", head:true }),
-    sb.from("estoque_insumos").select("tipo,quantidade"),
-    sb.from("saidas").select("q10,q20,q30,q50"),
-    sb.from("retornos").select("q10,q20,q30,q50")
+    sb.from("estoque_insumos").select("*"),
+    sb.from("saidas").select("*").order("data_saida", { ascending:false }).limit(250),
+    sb.from("retornos").select("*").order("data_retorno", { ascending:false }).limit(250),
+    sb.from("movimentacoes").select("*").order("criado_em", { ascending:false }).limit(8),
+    sb.from("entradas_insumos").select("*").not("validade","is",null).order("validade", { ascending:true }).limit(100)
   ]);
 
-  const litros = (estoque.data || []).reduce((s,r) => s + Number(r.litros || 0), 0);
-  const malte = (insumos.data || []).filter(i => i.tipo === "MALTE").reduce((s,r) => s + Number(r.quantidade || 0), 0);
-  const lupulo = (insumos.data || []).filter(i => i.tipo === "LUPULO").reduce((s,r) => s + Number(r.quantidade || 0), 0);
-  const fermento = (insumos.data || []).filter(i => i.tipo === "FERMENTO").reduce((s,r) => s + Number(r.quantidade || 0), 0);
+  const estoqueRows = estoque.data || [];
+  const producoesRows = producoes.data || [];
+  const envaseRows = envases.data || [];
+  const insumosRows = insumosEstoque.data || [];
+  const saidaRows = saidas.data || [];
+  const retornoRows = retornos.data || [];
 
-  const barrisSaidas = (saidas.data || []).reduce((s,r) => s + somaBarris(r.q10,r.q20,r.q30,r.q50), 0);
-  const barrisRetornos = (retornos.data || []).reduce((s,r) => s + somaBarris(r.q10,r.q20,r.q30,r.q50), 0);
+  const litrosEstoque = estoqueRows.reduce((s,r) => s + Number(r.litros || 0), 0);
+  const barrisDisponiveis = estoqueRows.reduce((s,r) => s + somaBarris(r.q10,r.q20,r.q30,r.q50), 0);
+  const barrisSaidas = saidaRows.reduce((s,r) => s + somaBarris(r.q10,r.q20,r.q30,r.q50), 0);
+  const barrisRetornos = retornoRows.reduce((s,r) => s + somaBarris(r.q10,r.q20,r.q30,r.q50), 0);
   const barrisEmClientes = Math.max(0, barrisSaidas - barrisRetornos);
 
-  document.getElementById("cardEstoqueCerveja").innerText = fmt(litros) + " L";
-  document.getElementById("cardFermentando").innerText = (producoes.data || []).length;
+  const litrosProduzidos = producoesRows.reduce((s,r) => s + Number(r.litros_produzidos || 0), 0);
+  const litrosEnvasados = envaseRows.reduce((s,r) => s + Number(r.litros_total || 0), 0);
+  const perdas = envaseRows.reduce((s,r) => s + Number(r.perda || 0), 0);
+
+  const malte = insumosRows.filter(i => i.tipo === "MALTE").reduce((s,r) => s + Number(r.quantidade || 0), 0);
+  const lupulo = insumosRows.filter(i => i.tipo === "LUPULO").reduce((s,r) => s + Number(r.quantidade || 0), 0);
+  const fermento = insumosRows.filter(i => i.tipo === "FERMENTO").reduce((s,r) => s + Number(r.quantidade || 0), 0);
+
+  document.getElementById("cardEstoqueCerveja").innerText = fmt(litrosEstoque) + " L";
+  document.getElementById("cardBarrisDisponiveis").innerText = barrisDisponiveis;
+  document.getElementById("cardBarrisClientes").innerText = barrisEmClientes;
   document.getElementById("cardClientes").innerText = clientes.count || 0;
+  document.getElementById("cardFermentando").innerText = state.producoesFermentando.length;
+  document.getElementById("cardLitrosProduzidos").innerText = fmt(litrosProduzidos) + " L";
+  document.getElementById("cardLitrosEnvasados").innerText = fmt(litrosEnvasados) + " L";
+  document.getElementById("cardPerdas").innerText = fmt(perdas) + " L";
   document.getElementById("cardMalte").innerText = fmt(malte, 1) + " KG";
   document.getElementById("cardLupulo").innerText = fmt(lupulo, 1) + " G";
   document.getElementById("cardFermento").innerText = fmt(fermento, 1) + " UN";
-  const cardBarris = document.getElementById("cardBarrisClientes");
-  if (cardBarris) cardBarris.innerText = barrisEmClientes;
 
-  const { data: movs } = await sb.from("movimentacoes")
-    .select("*")
-    .order("criado_em", { ascending:false })
-    .limit(5);
+  const estoquePorCerveja = agruparSoma(estoqueRows, r => r.cerveja_nome, r => r.litros);
+  const estoquePorOrigem = agruparSoma(estoqueRows, r => r.origem, r => r.litros);
+  const producaoMes = agruparPorMes(producoesRows, "data_producao", "litros_produzidos", 6);
+  const envaseMes = agruparPorMes(envaseRows, "data_envase", "litros_total", 6);
+  const saidasPorCerveja = agruparSoma(saidaRows, r => r.cerveja_nome, r => r.litros);
+
+  document.getElementById("dashTotalCervejas").innerText = `${estoquePorCerveja.filter(x => x.valor > 0).length} itens`;
+  renderBarChart("graficoEstoqueCerveja", estoquePorCerveja, { suffix:" L", limite:10 });
+  renderDonutOrigem("graficoEstoqueOrigem", estoquePorOrigem);
+  renderBarChart("graficoProducaoMes", producaoMes, { suffix:" L", limite:6 });
+  renderBarChart("graficoEnvaseMes", envaseMes, { suffix:" L", limite:6 });
+  renderBarChart("graficoSaidasCerveja", saidasPorCerveja, { suffix:" L", limite:8 });
+
+  const insumosGraf = [
+    { nome:"Malte KG", valor:malte },
+    { nome:"Lúpulo G", valor:lupulo },
+    { nome:"Fermento UN", valor:fermento }
+  ];
+  renderBarChart("graficoInsumos", insumosGraf, { casas:1, limite:3 });
+
+  const alertas = [];
+  const minCervejaPadrao = getConfigNumero("minimo_cerveja_padrao_litros", 0);
+  const minPilsen = getConfigNumero("minimo_pilsen_litros", 0);
+
+  const estoqueCervejaMap = new Map();
+  state.cervejas.forEach(c => estoqueCervejaMap.set(c.nome, 0));
+  estoqueRows.forEach(r => estoqueCervejaMap.set(r.cerveja_nome, (estoqueCervejaMap.get(r.cerveja_nome) || 0) + Number(r.litros || 0)));
+
+  [...estoqueCervejaMap.entries()].forEach(([nome,qtd]) => {
+    if (qtd <= 0) alertas.push(`Cerveja zerada: ${nome}`);
+    const min = String(nome).toUpperCase().includes("PILSEN") && minPilsen > 0 ? minPilsen : minCervejaPadrao;
+    if (min > 0 && qtd > 0 && qtd <= min) alertas.push(`Cerveja abaixo do mínimo: ${nome} (${fmt(qtd)} L)`);
+  });
+
+  const estoqueInsumoMap = new Map();
+  state.insumos.forEach(i => estoqueInsumoMap.set(i.tipo+"|"+i.nome, { ...i, quantidade:0 }));
+  insumosRows.forEach(r => {
+    const base = estoqueInsumoMap.get(r.tipo+"|"+r.nome) || r;
+    estoqueInsumoMap.set(r.tipo+"|"+r.nome, { ...base, quantidade:Number(r.quantidade || 0), unidade:r.unidade });
+  });
+
+  [...estoqueInsumoMap.values()].forEach(i => {
+    const min = Number(i.estoque_minimo || 0);
+    if (Number(i.quantidade || 0) <= 0) alertas.push(`Insumo zerado: ${i.tipo} — ${i.nome}`);
+    if (min > 0 && Number(i.quantidade || 0) > 0 && Number(i.quantidade || 0) <= min) {
+      alertas.push(`Insumo baixo: ${i.tipo} — ${i.nome} (${fmt(i.quantidade,2)} ${i.unidade})`);
+    }
+  });
+
+  const diasLote = getConfigNumero("dias_alerta_lote_fermentando", 10);
+  state.producoesFermentando.forEach(p => {
+    const dias = Math.max(0, Math.floor((new Date() - new Date(p.data_producao + "T00:00:00")) / 86400000));
+    if (dias >= diasLote) alertas.push(`Lote há ${dias}+ dias: ${p.lote} — ${p.cerveja_nome}`);
+  });
+
+  document.getElementById("cardAlertas").innerText = alertas.length;
+  document.getElementById("dashQtdAlertas").innerText = alertas.length;
+  document.getElementById("dashInsumosBaixos").innerText = `${[...estoqueInsumoMap.values()].filter(i => Number(i.estoque_minimo || 0) > 0 && Number(i.quantidade || 0) <= Number(i.estoque_minimo || 0)).length} baixo(s)`;
+
+  const alertBox = document.getElementById("dashboardAlertas");
+  alertBox.innerHTML = alertas.length ? "" : '<div class="item"><div class="alertLine"><span class="alertIcon ok">✓</span><span class="sub">Nenhum alerta crítico agora.</span></div></div>';
+  alertas.slice(0,12).forEach(a => {
+    alertBox.insertAdjacentHTML("beforeend", `<div class="item"><div class="alertLine"><span class="alertIcon">!</span><span>${escapeHtml(a)}</span></div></div>`);
+  });
+
+  const barrisPorCliente = new Map();
+  saidaRows.forEach(s => {
+    const atual = barrisPorCliente.get(s.cliente_nome) || { cliente:s.cliente_nome, saidas:0, retornos:0 };
+    atual.saidas += somaBarris(s.q10,s.q20,s.q30,s.q50);
+    barrisPorCliente.set(s.cliente_nome, atual);
+  });
+  retornoRows.forEach(r => {
+    const atual = barrisPorCliente.get(r.cliente_nome) || { cliente:r.cliente_nome, saidas:0, retornos:0 };
+    atual.retornos += somaBarris(r.q10,r.q20,r.q30,r.q50);
+    barrisPorCliente.set(r.cliente_nome, atual);
+  });
+
+  const barrisClientes = [...barrisPorCliente.values()]
+    .map(c => ({...c, aberto: Math.max(0, c.saidas - c.retornos)}))
+    .filter(c => c.aberto > 0)
+    .sort((a,b) => b.aberto - a.aberto)
+    .slice(0,8);
+
+  const barrisBox = document.getElementById("dashboardBarrisClientes");
+  barrisBox.innerHTML = barrisClientes.length ? "" : '<div class="item"><span class="sub">Nenhum barril em cliente.</span></div>';
+  barrisClientes.forEach(c => {
+    barrisBox.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div><strong>${escapeHtml(c.cliente)}</strong><div class="sub">Saíram ${c.saidas} • retornaram ${c.retornos}</div></div>
+        <span class="badge">${c.aberto}</span>
+      </div>
+    `);
+  });
+
+  const lotesBox = document.getElementById("dashboardLotesFermentando");
+  lotesBox.innerHTML = state.producoesFermentando.length ? "" : '<div class="item"><span class="sub">Nenhum lote fermentando.</span></div>';
+  state.producoesFermentando.slice(0,8).forEach(p => {
+    const dias = Math.max(0, Math.floor((new Date() - new Date(p.data_producao + "T00:00:00")) / 86400000));
+    lotesBox.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div><strong>${escapeHtml(p.lote)} — ${escapeHtml(p.cerveja_nome)}</strong><div class="sub">${fmt(p.litros_produzidos)} L • ${dias} dia(s)</div></div>
+        <span class="badge">${escapeHtml(p.status)}</span>
+      </div>
+    `);
+  });
 
   const movBox = document.getElementById("inicioMovimentacoes");
-  if (movBox) {
-    movBox.innerHTML = (movs || []).length ? "" : '<div class="item"><span class="sub">Nenhuma movimentação ainda.</span></div>';
-    (movs || []).forEach(m => {
-      movBox.insertAdjacentHTML("beforeend", `
-        <div class="item">
-          <div>
-            <strong>${escapeHtml(m.tipo)} — ${escapeHtml(m.item_nome || "")}</strong>
-            <div class="sub">${dataHoraBR(m.criado_em)} • ${escapeHtml(m.categoria || "")}</div>
-          </div>
-          <span class="badge">${fmt(m.quantidade,2)} ${escapeHtml(m.unidade || "")}</span>
+  movBox.innerHTML = (movs.data || []).length ? "" : '<div class="item"><span class="sub">Nenhuma movimentação ainda.</span></div>';
+  (movs.data || []).forEach(m => {
+    movBox.insertAdjacentHTML("beforeend", `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(m.tipo)} — ${escapeHtml(m.item_nome || "")}</strong>
+          <div class="sub">${dataHoraBR(m.criado_em)} • ${escapeHtml(m.categoria || "")}</div>
         </div>
-      `);
-    });
-  }
+        <span class="badge">${fmt(m.quantidade,2)} ${escapeHtml(m.unidade || "")}</span>
+      </div>
+    `);
+  });
 
   state.loaded.inicio = true;
 }

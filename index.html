@@ -39,7 +39,7 @@
     <header class="topbar">
       <div>
         <div class="appTitle">ERP Cervejaria</div>
-        <div class="appSub">Supabase • Apps Script V19 convertido</div>
+        <div class="appSub">Supabase • V19 Dashboard completo</div>
       </div>
       <button class="btnGhost" onclick="logout()">Sair</button>
     </header>
@@ -47,23 +47,107 @@
     <main>
       <section id="telaInicio" class="tela active">
         <div class="sectionHeader">
-          <h2>Início</h2>
+          <h2>Dashboard</h2>
           <button class="btnSmall" onclick="carregarInicio(true)">Atualizar</button>
         </div>
 
         <div class="gridCards">
-          <div class="card"><span>🍺 Estoque cerveja</span><strong id="cardEstoqueCerveja">0 L</strong></div>
-          <div class="card"><span>🧪 Lotes fermentando</span><strong id="cardFermentando">0</strong></div>
-          <div class="card"><span>🌾 Malte</span><strong id="cardMalte">0 KG</strong></div>
-          <div class="card"><span>🌿 Lúpulo</span><strong id="cardLupulo">0 G</strong></div>
-          <div class="card"><span>🧫 Fermento</span><strong id="cardFermento">0 UN</strong></div>
-          <div class="card"><span>👥 Clientes</span><strong id="cardClientes">0</strong></div>
-          <div class="card"><span>🛢️ Barris em clientes</span><strong id="cardBarrisClientes">0</strong></div>
+          <div class="card"><span>Estoque Total</span><strong id="cardEstoqueCerveja">0 L</strong></div>
+          <div class="card"><span>Barris Disponíveis</span><strong id="cardBarrisDisponiveis">0</strong></div>
+          <div class="card"><span>Barris em Clientes</span><strong id="cardBarrisClientes">0</strong></div>
+          <div class="card"><span>Clientes</span><strong id="cardClientes">0</strong></div>
+          <div class="card"><span>Lotes Fermentando</span><strong id="cardFermentando">0</strong></div>
+          <div class="card"><span>Litros Produzidos</span><strong id="cardLitrosProduzidos">0 L</strong></div>
+          <div class="card"><span>Litros Envasados</span><strong id="cardLitrosEnvasados">0 L</strong></div>
+          <div class="card"><span>Perdas</span><strong id="cardPerdas">0 L</strong></div>
+          <div class="card"><span>Malte</span><strong id="cardMalte">0 KG</strong></div>
+          <div class="card"><span>Lúpulo</span><strong id="cardLupulo">0 G</strong></div>
+          <div class="card"><span>Fermento</span><strong id="cardFermento">0 UN</strong></div>
+          <div class="card"><span>Alertas</span><strong id="cardAlertas">0</strong></div>
         </div>
 
-        <div class="box">
-          <h3>Últimas movimentações</h3>
-          <div id="inicioMovimentacoes" class="lista"></div>
+        <div class="dashboardGrid">
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Estoque por cerveja</h3>
+              <span id="dashTotalCervejas" class="miniBadge">0 itens</span>
+            </div>
+            <div id="graficoEstoqueCerveja" class="barChart"></div>
+          </div>
+
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Estoque por origem</h3>
+              <span class="miniBadge">Litros</span>
+            </div>
+            <div id="graficoEstoqueOrigem" class="donutWrap"></div>
+          </div>
+
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Produção por mês</h3>
+              <span class="miniBadge">Últimos 6 meses</span>
+            </div>
+            <div id="graficoProducaoMes" class="barChart"></div>
+          </div>
+
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Envase por mês</h3>
+              <span class="miniBadge">Últimos 6 meses</span>
+            </div>
+            <div id="graficoEnvaseMes" class="barChart"></div>
+          </div>
+
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Saídas por cerveja</h3>
+              <span class="miniBadge">Últimas saídas</span>
+            </div>
+            <div id="graficoSaidasCerveja" class="barChart"></div>
+          </div>
+
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Insumos</h3>
+              <span id="dashInsumosBaixos" class="miniBadge">0 baixo(s)</span>
+            </div>
+            <div id="graficoInsumos" class="barChart"></div>
+          </div>
+        </div>
+
+        <div class="dashboardGrid">
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Alertas ativos</h3>
+              <span id="dashQtdAlertas" class="miniBadge">0</span>
+            </div>
+            <div id="dashboardAlertas" class="lista compactList"></div>
+          </div>
+
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Barris em clientes</h3>
+              <span class="miniBadge">Acompanhamento</span>
+            </div>
+            <div id="dashboardBarrisClientes" class="lista compactList"></div>
+          </div>
+
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Lotes fermentando</h3>
+              <span class="miniBadge">Produção</span>
+            </div>
+            <div id="dashboardLotesFermentando" class="lista compactList"></div>
+          </div>
+
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Últimas movimentações</h3>
+              <span class="miniBadge">Histórico</span>
+            </div>
+            <div id="inicioMovimentacoes" class="lista compactList"></div>
+          </div>
         </div>
       </section>
 
