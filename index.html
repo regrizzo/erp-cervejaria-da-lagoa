@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>ERP Cervejaria</title>
 
-  <link rel="manifest" href="./manifest.json?v=codigos-barris-baixa-obrigatoria-20260714" />
+  <link rel="manifest" href="./manifest.json?v=operacional-completo-20260714" />
   <link rel="icon" type="image/png" href="https://regrizzo.github.io/erp-cervejaria-icons/icon-192.png" />
   <link rel="apple-touch-icon" href="https://regrizzo.github.io/erp-cervejaria-icons/apple-touch-icon-180.png" />
   <meta name="theme-color" content="#0c2949" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=codigos-barris-baixa-obrigatoria-20260714" />
+  <link rel="stylesheet" href="./styles.css?v=operacional-completo-20260714" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -41,10 +41,37 @@
         <div class="appTitle">ERP Cervejaria</div>
         <div class="appSub">Painel de controle e gestão de estoque</div>
       </div>
-      <button class="btnGhost" onclick="logout()">Sair</button>
+      <div class="topActions">
+        <button class="btnGhost btnSearchTop" onclick="abrirBuscaGlobal()" aria-label="Buscar">🔎</button>
+        <button class="btnGhost" onclick="logout()">Sair</button>
+      </div>
     </header>
 
     <main>
+      <section id="telaBusca" class="tela">
+        <div class="sectionHeader">
+          <h2>Busca geral</h2>
+          <button class="btnSmall" onclick="mostrarTela('inicio')">Fechar</button>
+        </div>
+
+        <div class="box buscaGlobalBox">
+          <label>O que você procura?</label>
+          <div class="searchRow">
+            <input
+              id="buscaGlobalInput"
+              class="search"
+              placeholder="Cliente, cerveja, lote, barril, insumo..."
+              onkeydown="if(event.key==='Enter') executarBuscaGlobal()"
+            >
+            <button class="btnMain" onclick="executarBuscaGlobal()">Buscar</button>
+          </div>
+          <p class="muted">A busca consulta clientes, cervejas, lotes, códigos de barris, insumos, saídas, retornos e movimentações.</p>
+        </div>
+
+        <div id="buscaGlobalResumo" class="gridCards"></div>
+        <div id="buscaGlobalResultados" class="lista"></div>
+      </section>
+
       <section id="telaInicio" class="tela active">
         <div class="sectionHeader">
           <h2>Dashboard</h2>
@@ -164,16 +191,16 @@
           <button class="btnSecondary" onclick="mostrarTela('fermentos')">🧫 Fermentos</button>
         </div>
 
-        <div id="formProducao" class="formBox" style="display:none;">
+        <div id="formProducao" class="formBox" data-proteger="1" style="display:none;">
           <h3>Nova produção</h3>
           <label>Lote</label>
-          <input id="prodLote" placeholder="Ex: LOT26001">
+          <input id="prodLote" placeholder="Ex: 1" oninput="atualizarResumoProducao()">
 
           <label>Cerveja</label>
-          <select id="prodCerveja"></select>
+          <select id="prodCerveja" onchange="atualizarResumoProducao()"></select>
 
           <label>Litros produzidos</label>
-          <input id="prodLitros" type="number" min="0" step="0.01">
+          <input id="prodLitros" type="number" min="0" step="0.01" oninput="atualizarResumoProducao()">
 
           <div class="infoBox">Maltes usados</div>
           <div id="prodMaltes"></div>
@@ -206,13 +233,15 @@
           </div>
 
           <label>Observação</label>
-          <textarea id="prodObs"></textarea>
+          <textarea id="prodObs" oninput="atualizarResumoProducao()"></textarea>
 
-          <button onclick="salvarProducao()">Salvar produção</button>
+          <div id="prodResumo" class="infoBox">Preencha os dados para conferir a produção.</div>
+
+          <button class="btnMobilePrimary" onclick="salvarProducao()">Conferir e salvar produção</button>
           <div id="prodErro" class="erro"></div>
         </div>
 
-        <div id="formDryHop" class="formBox" style="display:none;">
+        <div id="formDryHop" class="formBox" data-proteger="1" style="display:none;">
           <h3>Dry hopping</h3>
 
           <label>Lote fermentando</label>
@@ -229,11 +258,11 @@
           <div id="dryErro" class="erro"></div>
         </div>
 
-        <div id="formEnvase" class="formBox" style="display:none;">
+        <div id="formEnvase" class="formBox" data-proteger="1" style="display:none;">
           <h3>Envase</h3>
 
           <label>Lote fermentando</label>
-          <select id="envaseLote" onchange="atualizarResumoEnvase()"></select>
+          <select id="envaseLote" onchange="carregarSaldoEnvaseSelecionado()"></select>
 
           <label>Origem do envase</label>
           <select id="envaseOrigem">
@@ -250,15 +279,28 @@
             <div><label>Barris 50L</label><input id="envaseQ50" type="number" min="0" value="0" oninput="atualizarResumoEnvase()"></div>
           </div>
 
-          <label>Litros incompletos direto no bar</label>
+          <label>Litros no último barril incompleto</label>
           <input id="envaseIncompleto" type="number" min="0" step="0.01" value="0" oninput="atualizarResumoEnvase()">
+          <div class="sub">Conta no envase, mas não entra nos barris disponíveis do estoque.</div>
 
-          <div class="infoBox" id="envaseResumo">Total envasado: 0 L</div>
+          <label>Outros litros destinados ao bar próprio</label>
+          <input id="envaseBarProprio" type="number" min="0" step="0.01" value="0" oninput="atualizarResumoEnvase()">
+          <div class="sub">Conta no envase, mas não entra no estoque de barris.</div>
+
+          <label>Perda real deste envase</label>
+          <input id="envasePerdaInformada" type="number" min="0" step="0.01" value="0" oninput="atualizarResumoEnvase()">
+
+          <label class="checkLine">
+            <input id="envaseFinalizarLote" type="checkbox" onchange="atualizarResumoEnvase()">
+            <span>Finalizar o lote após este envase. O saldo restante será contabilizado como perda.</span>
+          </label>
+
+          <div class="infoBox" id="envaseResumo">Selecione o lote para ver o saldo.</div>
 
           <label>Observação</label>
           <textarea id="envaseObs"></textarea>
 
-          <button onclick="salvarEnvase()">Registrar envase</button>
+          <button class="btnMobilePrimary" onclick="salvarEnvase()">Conferir e registrar envase</button>
           <div id="envaseErro" class="erro"></div>
         </div>
 
@@ -276,8 +318,8 @@
         <div class="actionGrid">
           <button class="btnMain" onclick="toggleForm('formEntradaCerveja')">+ Entrada cerveja</button>
           <button class="btnSecondary" onclick="toggleForm('formEntradaInsumo')">+ Compra insumo</button>
-          <button class="btnWarn" onclick="toggleForm('formAjusteCerveja')">🛠️ Ajustar cerveja</button>
-          <button class="btnWarn" onclick="toggleForm('formAjusteInsumo')">⚖️ Ajustar insumo</button>
+          <button class="btnWarn" onclick="toggleForm('formAjusteCerveja')">📋 Conferir cerveja</button>
+          <button class="btnWarn" onclick="toggleForm('formAjusteInsumo')">📋 Conferir insumo</button>
         </div>
 
         <div id="formEntradaCerveja" class="formBox" style="display:none;">
@@ -344,27 +386,31 @@
         </div>
 
         <div id="formAjusteCerveja" class="formBox" style="display:none;">
-          <h3>Ajustar estoque de cerveja</h3>
-          <p class="muted">Use quando a contagem real for diferente do sistema. O sistema grava o histórico do ajuste.</p>
+          <h3>Conferência física de cerveja</h3>
+          <p class="muted">O app mostra o estoque esperado. Informe o que foi contado fisicamente.</p>
 
           <label>Cerveja</label>
-          <select id="ajusteCerveja"></select>
+          <select id="ajusteCerveja" onchange="atualizarConferenciaCerveja()"></select>
 
           <label>Origem</label>
-          <select id="ajusteCervejaOrigem">
+          <select id="ajusteCervejaOrigem" onchange="atualizarConferenciaCerveja()">
             <option value="PRODUCAO">PRODUÇÃO</option>
             <option value="ITAPEMA">ITAPEMA</option>
             <option value="PHENOMENA">PHENOMENA</option>
           </select>
 
+          <div id="ajusteCervejaSistema" class="infoBox">Selecione cerveja e origem.</div>
+
           <div class="linha2">
-            <div><label>Real 10L</label><input id="ajusteCervQ10" type="number" min="0" value="0"></div>
-            <div><label>Real 20L</label><input id="ajusteCervQ20" type="number" min="0" value="0"></div>
+            <div><label>Contado 10L</label><input id="ajusteCervQ10" type="number" min="0" value="0" oninput="calcularDiferencaConferenciaCerveja()"></div>
+            <div><label>Contado 20L</label><input id="ajusteCervQ20" type="number" min="0" value="0" oninput="calcularDiferencaConferenciaCerveja()"></div>
           </div>
           <div class="linha2">
-            <div><label>Real 30L</label><input id="ajusteCervQ30" type="number" min="0" value="0"></div>
-            <div><label>Real 50L</label><input id="ajusteCervQ50" type="number" min="0" value="0"></div>
+            <div><label>Contado 30L</label><input id="ajusteCervQ30" type="number" min="0" value="0" oninput="calcularDiferencaConferenciaCerveja()"></div>
+            <div><label>Contado 50L</label><input id="ajusteCervQ50" type="number" min="0" value="0" oninput="calcularDiferencaConferenciaCerveja()"></div>
           </div>
+
+          <div id="ajusteCervejaDiferenca" class="infoBox">Diferença: 0 L</div>
 
           <label>Motivo</label>
           <textarea id="ajusteCervejaMotivo" placeholder="Ex: conferência física, erro de lançamento..."></textarea>
@@ -372,26 +418,30 @@
           <label>Responsável</label>
           <input id="ajusteCervejaResp" placeholder="Quem conferiu">
 
-          <button onclick="salvarAjusteCerveja()">Salvar ajuste de cerveja</button>
+          <button class="btnMobilePrimary" onclick="salvarAjusteCerveja()">Salvar conferência de cerveja</button>
           <div id="ajusteCervejaErro" class="erro"></div>
         </div>
 
         <div id="formAjusteInsumo" class="formBox" style="display:none;">
-          <h3>Ajustar estoque de insumo</h3>
-          <p class="muted">Informe a quantidade real encontrada no estoque.</p>
+          <h3>Conferência física de insumo</h3>
+          <p class="muted">O app mostra a quantidade esperada. Informe o que foi contado fisicamente.</p>
 
           <label>Tipo</label>
-          <select id="ajusteInsumoTipo" onchange="popularAjusteInsumos()">
+          <select id="ajusteInsumoTipo" onchange="popularAjusteInsumos(); atualizarConferenciaInsumo()">
             <option value="MALTE">Malte</option>
             <option value="LUPULO">Lúpulo</option>
             <option value="FERMENTO">Fermento</option>
           </select>
 
           <label>Insumo</label>
-          <select id="ajusteInsumoNome"></select>
+          <select id="ajusteInsumoNome" onchange="atualizarConferenciaInsumo()"></select>
 
-          <label>Quantidade real</label>
-          <input id="ajusteInsumoQtd" type="number" min="0" step="0.001">
+          <div id="ajusteInsumoSistema" class="infoBox">Selecione um insumo.</div>
+
+          <label>Quantidade contada</label>
+          <input id="ajusteInsumoQtd" type="number" min="0" step="0.001" oninput="calcularDiferencaConferenciaInsumo()">
+
+          <div id="ajusteInsumoDiferenca" class="infoBox">Diferença: 0</div>
 
           <label>Motivo</label>
           <textarea id="ajusteInsumoMotivo" placeholder="Ex: conferência física, divergência na compra..."></textarea>
@@ -399,7 +449,7 @@
           <label>Responsável</label>
           <input id="ajusteInsumoResp" placeholder="Quem conferiu">
 
-          <button onclick="salvarAjusteInsumo()">Salvar ajuste de insumo</button>
+          <button class="btnMobilePrimary" onclick="salvarAjusteInsumo()">Salvar conferência de insumo</button>
           <div id="ajusteInsumoErro" class="erro"></div>
         </div>
 
@@ -424,6 +474,9 @@
           <input class="search" placeholder="Buscar insumo..." oninput="filtrarLista('estoqueInsumos', this.value)">
           <div id="estoqueInsumos" class="lista"></div>
         </div>
+
+        <h3>Últimas conferências físicas</h3>
+        <div id="historicoConferencias" class="lista"></div>
       </section>
 
       <section id="telaSaidas" class="tela">
@@ -493,10 +546,11 @@
           <input class="search" id="buscaLotes" placeholder="Buscar por lote, cerveja ou status..." oninput="filtrarLista('listaLotes', this.value)">
         </div>
 
-        <div class="tabs">
+        <div class="tabs tabsScroll">
           <button class="tab active" onclick="mostrarSubLotes('todos')">Todos</button>
-          <button class="tab" onclick="mostrarSubLotes('fermentando')">Fermentando</button>
+          <button class="tab" onclick="mostrarSubLotes('andamento')">Em andamento</button>
           <button class="tab" onclick="mostrarSubLotes('envasados')">Envasados</button>
+          <button class="tab" onclick="mostrarSubLotes('finalizados')">Finalizados</button>
         </div>
 
         <div id="resumoLotes" class="gridCards"></div>
@@ -930,6 +984,6 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=codigos-barris-baixa-obrigatoria-20260714"></script>
+  <script src="./app.js?v=operacional-completo-20260714"></script>
 </body>
 </html>
