@@ -21,7 +21,7 @@
     <div class="loginCard">
       <img class="logo" src="https://regrizzo.github.io/erp-cervejaria-icons/icon-192.png" alt="ERP Cervejaria">
       <h1>ERP Cervejaria</h1>
-      <p>App conectado ao Supabase</p>
+      <p>App novo conectado ao Supabase</p>
 
       <label>E-mail</label>
       <input id="loginEmail" type="email" placeholder="seu@email.com">
@@ -31,7 +31,7 @@
 
       <button onclick="login()">Entrar</button>
       <div id="loginErro" class="erro"></div>
-      <small>Crie o usuário no Supabase em Authentication &gt; Users.</small>
+      <small>Use o usuário criado em Supabase &gt; Authentication &gt; Users.</small>
     </div>
   </div>
 
@@ -39,7 +39,7 @@
     <header class="topbar">
       <div>
         <div class="appTitle">ERP Cervejaria</div>
-        <div class="appSub">Supabase • versão inicial</div>
+        <div class="appSub">Supabase • V2 migração</div>
       </div>
       <button class="btnGhost" onclick="logout()">Sair</button>
     </header>
@@ -61,8 +61,11 @@
         </div>
 
         <div class="box">
-          <h3>Resumo rápido</h3>
-          <div id="resumoInicio" class="muted">Carregando...</div>
+          <h3>O que já está migrado nesta V2</h3>
+          <div class="muted">
+            Cadastros, clientes, produção com insumos, dry hopping, envase, entrada de estoque de cerveja e compra de insumos.
+            Saída múltipla e fermento reutilizável serão a próxima etapa.
+          </div>
         </div>
       </section>
 
@@ -72,9 +75,14 @@
           <button class="btnSmall" onclick="carregarProducao(true)">Atualizar</button>
         </div>
 
-        <button class="btnMain" onclick="toggleForm('formProducao')">+ Nova Produção</button>
+        <div class="actionGrid">
+          <button class="btnMain" onclick="toggleForm('formProducao')">+ Nova Produção</button>
+          <button class="btnSecondary" onclick="toggleForm('formDryHop')">🌿 Dry Hopping</button>
+          <button class="btnSuccess" onclick="toggleForm('formEnvase')">🍺 Envase</button>
+        </div>
 
         <div id="formProducao" class="formBox" style="display:none;">
+          <h3>Nova produção</h3>
           <label>Lote</label>
           <input id="prodLote" placeholder="Ex: LOT26001">
 
@@ -84,6 +92,20 @@
           <label>Litros produzidos</label>
           <input id="prodLitros" type="number" min="0" step="0.01">
 
+          <div class="infoBox">Maltes usados</div>
+          <div id="prodMaltes"></div>
+          <button class="btnMini" type="button" onclick="adicionarLinhaInsumo('prodMaltes','MALTE')">+ Adicionar malte</button>
+
+          <div class="infoBox">Lúpulos usados na produção</div>
+          <div id="prodLupulos"></div>
+          <button class="btnMini" type="button" onclick="adicionarLinhaInsumo('prodLupulos','LUPULO')">+ Adicionar lúpulo</button>
+
+          <label>Fermento</label>
+          <select id="prodFermento"></select>
+
+          <label>Quantidade de fermento</label>
+          <input id="prodFermentoQtd" type="number" min="0" step="0.001" placeholder="UN">
+
           <label>Observação</label>
           <textarea id="prodObs"></textarea>
 
@@ -91,7 +113,58 @@
           <div id="prodErro" class="erro"></div>
         </div>
 
+        <div id="formDryHop" class="formBox" style="display:none;">
+          <h3>Dry hopping</h3>
+
+          <label>Lote fermentando</label>
+          <select id="dryLote"></select>
+
+          <div class="infoBox">Lúpulos usados no dry hopping</div>
+          <div id="dryLupulos"></div>
+          <button class="btnMini" type="button" onclick="adicionarLinhaInsumo('dryLupulos','LUPULO')">+ Adicionar lúpulo</button>
+
+          <label>Observação</label>
+          <textarea id="dryObs"></textarea>
+
+          <button onclick="salvarDryHop()">Salvar dry hopping</button>
+          <div id="dryErro" class="erro"></div>
+        </div>
+
+        <div id="formEnvase" class="formBox" style="display:none;">
+          <h3>Envase</h3>
+
+          <label>Lote fermentando</label>
+          <select id="envaseLote" onchange="atualizarResumoEnvase()"></select>
+
+          <label>Origem do envase</label>
+          <select id="envaseOrigem">
+            <option value="PRODUCAO">PRODUÇÃO — estoque próprio</option>
+            <option value="PHENOMENA">PHENOMENA — entrada sem débito</option>
+          </select>
+
+          <div class="linha2">
+            <div><label>Barris 10L</label><input id="envaseQ10" type="number" min="0" value="0" oninput="atualizarResumoEnvase()"></div>
+            <div><label>Barris 20L</label><input id="envaseQ20" type="number" min="0" value="0" oninput="atualizarResumoEnvase()"></div>
+          </div>
+          <div class="linha2">
+            <div><label>Barris 30L</label><input id="envaseQ30" type="number" min="0" value="0" oninput="atualizarResumoEnvase()"></div>
+            <div><label>Barris 50L</label><input id="envaseQ50" type="number" min="0" value="0" oninput="atualizarResumoEnvase()"></div>
+          </div>
+
+          <label>Litros incompletos direto no bar</label>
+          <input id="envaseIncompleto" type="number" min="0" step="0.01" value="0" oninput="atualizarResumoEnvase()">
+
+          <div class="infoBox" id="envaseResumo">Total envasado: 0 L</div>
+
+          <label>Observação</label>
+          <textarea id="envaseObs"></textarea>
+
+          <button onclick="salvarEnvase()">Registrar envase</button>
+          <div id="envaseErro" class="erro"></div>
+        </div>
+
         <h3>Cervejas em produção</h3>
+        <input class="search" id="buscaProducao" placeholder="Buscar lote ou cerveja..." oninput="filtrarLista('listaProducoes', this.value)">
         <div id="listaProducoes" class="lista"></div>
       </section>
 
@@ -101,6 +174,74 @@
           <button class="btnSmall" onclick="carregarEstoque(true)">Atualizar</button>
         </div>
 
+        <div class="actionGrid">
+          <button class="btnMain" onclick="toggleForm('formEntradaCerveja')">+ Entrada cerveja</button>
+          <button class="btnSecondary" onclick="toggleForm('formEntradaInsumo')">+ Compra insumo</button>
+        </div>
+
+        <div id="formEntradaCerveja" class="formBox" style="display:none;">
+          <h3>Entrada de estoque de cerveja</h3>
+          <label>Cerveja</label>
+          <select id="entradaCerveja"></select>
+
+          <label>Origem</label>
+          <select id="entradaOrigem">
+            <option value="PRODUCAO">PRODUÇÃO</option>
+            <option value="ITAPEMA">ITAPEMA</option>
+            <option value="PHENOMENA">PHENOMENA</option>
+          </select>
+
+          <div class="linha2">
+            <div><label>Barris 10L</label><input id="entradaQ10" type="number" min="0" value="0"></div>
+            <div><label>Barris 20L</label><input id="entradaQ20" type="number" min="0" value="0"></div>
+          </div>
+          <div class="linha2">
+            <div><label>Barris 30L</label><input id="entradaQ30" type="number" min="0" value="0"></div>
+            <div><label>Barris 50L</label><input id="entradaQ50" type="number" min="0" value="0"></div>
+          </div>
+
+          <label>Observação</label>
+          <textarea id="entradaObs"></textarea>
+
+          <button onclick="salvarEntradaCerveja()">Registrar entrada</button>
+          <div id="entradaCervejaErro" class="erro"></div>
+        </div>
+
+        <div id="formEntradaInsumo" class="formBox" style="display:none;">
+          <h3>Entrada de compra de insumo</h3>
+
+          <label>Tipo</label>
+          <select id="entradaInsumoTipo" onchange="popularEntradaInsumos()">
+            <option value="MALTE">Malte</option>
+            <option value="LUPULO">Lúpulo</option>
+            <option value="FERMENTO">Fermento</option>
+          </select>
+
+          <label>Insumo</label>
+          <select id="entradaInsumoNome"></select>
+
+          <label>Quantidade</label>
+          <input id="entradaInsumoQtd" type="number" min="0" step="0.001">
+
+          <label>Fornecedor</label>
+          <input id="entradaInsumoFornecedor">
+
+          <label>Valor total</label>
+          <input id="entradaInsumoValor" type="number" min="0" step="0.01">
+
+          <label>Validade</label>
+          <input id="entradaInsumoValidade" type="date">
+
+          <label>Lote fornecedor</label>
+          <input id="entradaInsumoLote">
+
+          <label>Observação</label>
+          <textarea id="entradaInsumoObs"></textarea>
+
+          <button onclick="salvarEntradaInsumo()">Registrar compra</button>
+          <div id="entradaInsumoErro" class="erro"></div>
+        </div>
+
         <div class="tabs">
           <button class="tab active" onclick="mostrarSubEstoque('cervejas')">Cervejas</button>
           <button class="tab" onclick="mostrarSubEstoque('insumos')">Insumos</button>
@@ -108,11 +249,13 @@
 
         <div id="subEstoqueCervejas">
           <h3>Cervejas</h3>
+          <input class="search" placeholder="Buscar cerveja..." oninput="filtrarLista('estoqueCervejas', this.value)">
           <div id="estoqueCervejas" class="lista"></div>
         </div>
 
         <div id="subEstoqueInsumos" style="display:none;">
           <h3>Insumos</h3>
+          <input class="search" placeholder="Buscar insumo..." oninput="filtrarLista('estoqueInsumos', this.value)">
           <div id="estoqueInsumos" class="lista"></div>
         </div>
       </section>
@@ -124,7 +267,9 @@
         </div>
 
         <div class="box">
-          <p class="muted">Nesta versão inicial Supabase, a tela de saída está em modo consulta. A gravação completa da saída múltipla será migrada na próxima etapa.</p>
+          <p class="muted">
+            A saída múltipla completa será migrada na próxima etapa. Nesta V2, esta tela consulta as últimas saídas já existentes no banco.
+          </p>
         </div>
 
         <h3>Últimas saídas</h3>
@@ -133,7 +278,6 @@
 
       <section id="telaMais" class="tela">
         <h2>Mais</h2>
-
         <div class="maisGrid">
           <div class="maisCard" onclick="mostrarTela('clientes')"><strong>👥 Clientes</strong><span>Cadastro e consulta</span></div>
           <div class="maisCard" onclick="mostrarTela('cadastros')"><strong>🗂️ Cadastros</strong><span>Cervejas e insumos</span></div>
@@ -168,6 +312,7 @@
           <div id="cliErro" class="erro"></div>
         </div>
 
+        <input class="search" placeholder="Buscar cliente..." oninput="filtrarLista('listaClientes', this.value)">
         <div id="listaClientes" class="lista"></div>
       </section>
 

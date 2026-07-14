@@ -1,0 +1,59 @@
+
+ERP CERVEJARIA SUPABASE V2 - PASSO A PASSO PARA LEIGO
+
+Esta versão continua a migração do Apps Script para Supabase.
+
+O que a V2 já faz:
+- Login
+- Dashboard
+- Cadastro de cervejas
+- Cadastro de insumos
+- Cadastro de clientes
+- Entrada de estoque de cerveja
+- Entrada de compra de insumos
+- Produção com baixa de maltes, lúpulos e fermento
+- Dry hopping com baixa de lúpulos
+- Envase com origem PRODUÇÃO ou PHENOMENA
+- Envase com litros incompletos direto no bar
+- Estoque de cervejas e insumos
+- Consulta das últimas saídas
+
+O que ainda NÃO foi migrado:
+- Saída múltipla completa
+- Ajuste de estoque
+- Fermento reutilizável
+- Auditoria/relatórios completos
+- Backup/exportação
+
+COMO ATUALIZAR NO GITHUB PAGES
+
+1. Baixe este ZIP e extraia os arquivos.
+2. Entre no GitHub.
+3. Abra seu repositório:
+   erp-cervejaria-supabase
+4. Clique em Add file.
+5. Clique em Upload files.
+6. Arraste estes 4 arquivos:
+   - index.html
+   - styles.css
+   - app.js
+   - manifest.json
+7. O GitHub vai perguntar se quer substituir. Pode substituir.
+8. Clique em Commit changes.
+9. Aguarde 1 a 3 minutos.
+10. Abra novamente o link do app.
+
+IMPORTANTE:
+Não precisa rodar SQL novo nesta V2 se você já rodou os arquivos:
+01_CRIAR_TABELAS.sql
+02_SEGURANCA_LOGIN.sql
+
+TESTE RECOMENDADO:
+1. Cadastre uma cerveja.
+2. Cadastre malte, lúpulo e fermento.
+3. Vá em Estoque e faça entrada de compra desses insumos.
+4. Vá em Produção e registre uma produção usando esses insumos.
+5. Confira se os insumos baixaram no Estoque.
+6. Faça um Dry Hopping.
+7. Faça o Envase.
+8. Confira se a cerveja entrou no estoque.
