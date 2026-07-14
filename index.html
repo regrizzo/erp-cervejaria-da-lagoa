@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>ERP Cervejaria</title>
 
-  <link rel="manifest" href="./manifest.json?v=correcoes-backup-20260714" />
+  <link rel="manifest" href="./manifest.json?v=controle-acesso-usuarios-20260714" />
   <link rel="icon" type="image/png" href="https://regrizzo.github.io/erp-cervejaria-icons/icon-192.png" />
   <link rel="apple-touch-icon" href="https://regrizzo.github.io/erp-cervejaria-icons/apple-touch-icon-180.png" />
   <meta name="theme-color" content="#0c2949" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=correcoes-backup-20260714" />
+  <link rel="stylesheet" href="./styles.css?v=controle-acesso-usuarios-20260714" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -35,6 +35,15 @@
     </div>
   </div>
 
+  <div id="accessScreen" class="loginScreen" style="display:none;">
+    <div class="loginCard">
+      <img class="logo" src="https://regrizzo.github.io/erp-cervejaria-icons/icon-192.png" alt="ERP Cervejaria">
+      <h1>Acesso aguardando liberação</h1>
+      <p id="accessScreenMessage">Seu login existe, mas ainda não foi ativado pelo administrador.</p>
+      <button onclick="logout()">Sair</button>
+    </div>
+  </div>
+
   <div id="app" class="app" style="display:none;">
     <header class="topbar">
       <div>
@@ -43,12 +52,13 @@
       </div>
       <div class="topActions">
         <button class="btnGhost btnSearchTop" onclick="abrirBuscaGlobal()" aria-label="Buscar">🔎</button>
+        <button id="btnUsuarioAtual" class="btnGhost userTopButton" onclick="mostrarTela('minhaConta')">Minha conta</button>
         <button class="btnGhost" onclick="logout()">Sair</button>
       </div>
     </header>
 
     <main>
-      <section id="telaBusca" class="tela">
+      <section id="telaBusca" data-modulo="dashboard" class="tela">
         <div class="sectionHeader">
           <h2>Busca geral</h2>
           <button class="btnSmall" onclick="mostrarTela('inicio')">Fechar</button>
@@ -72,7 +82,7 @@
         <div id="buscaGlobalResultados" class="lista"></div>
       </section>
 
-      <section id="telaInicio" class="tela active">
+      <section id="telaInicio" data-modulo="dashboard" class="tela active">
         <div class="sectionHeader">
           <h2>Dashboard</h2>
         </div>
@@ -177,15 +187,15 @@
         </div>
       </section>
 
-      <section id="telaProducao" class="tela">
+      <section id="telaProducao" data-modulo="producao" class="tela">
         <div class="sectionHeader">
           <h2>Produção</h2>
         </div>
 
         <div class="actionGrid">
-          <button class="btnMain" onclick="toggleForm('formProducao')">+ Nova Produção</button>
-          <button class="btnSecondary" onclick="toggleForm('formDryHop')">🌿 Dry Hopping</button>
-          <button class="btnSuccess" onclick="toggleForm('formEnvase')">🍺 Envase</button>
+          <button class="btnMain" data-editar-modulo="producao" onclick="toggleForm('formProducao')">+ Nova Produção</button>
+          <button class="btnSecondary" data-editar-modulo="producao" onclick="toggleForm('formDryHop')">🌿 Dry Hopping</button>
+          <button class="btnSuccess" data-editar-modulo="producao" onclick="toggleForm('formEnvase')">🍺 Envase</button>
           <button class="btnSecondary" onclick="mostrarTela('fermentos')">🧫 Fermentos</button>
         </div>
 
@@ -202,11 +212,11 @@
 
           <div class="infoBox">Maltes usados</div>
           <div id="prodMaltes"></div>
-          <button class="btnMini" type="button" onclick="adicionarLinhaInsumo('prodMaltes','MALTE')">+ Adicionar malte</button>
+          <button class="btnMini" type="button" data-editar-modulo="producao" onclick="adicionarLinhaInsumo('prodMaltes','MALTE')">+ Adicionar malte</button>
 
           <div class="infoBox">Lúpulos usados na produção</div>
           <div id="prodLupulos"></div>
-          <button class="btnMini" type="button" onclick="adicionarLinhaInsumo('prodLupulos','LUPULO')">+ Adicionar lúpulo</button>
+          <button class="btnMini" type="button" data-editar-modulo="producao" onclick="adicionarLinhaInsumo('prodLupulos','LUPULO')">+ Adicionar lúpulo</button>
 
           <label>Tipo de fermento</label>
           <select id="prodFermentoTipo" onchange="alternarTipoFermentoProducao()">
@@ -235,7 +245,7 @@
 
           <div id="prodResumo" class="infoBox">Preencha os dados para conferir a produção.</div>
 
-          <button class="btnMobilePrimary" onclick="salvarProducao()">Conferir e salvar produção</button>
+          <button class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarProducao()">Conferir e salvar produção</button>
           <div id="prodErro" class="erro"></div>
         </div>
 
@@ -247,12 +257,12 @@
 
           <div class="infoBox">Lúpulos usados no dry hopping</div>
           <div id="dryLupulos"></div>
-          <button class="btnMini" type="button" onclick="adicionarLinhaInsumo('dryLupulos','LUPULO')">+ Adicionar lúpulo</button>
+          <button class="btnMini" type="button" data-editar-modulo="producao" onclick="adicionarLinhaInsumo('dryLupulos','LUPULO')">+ Adicionar lúpulo</button>
 
           <label>Observação</label>
           <textarea id="dryObs"></textarea>
 
-          <button onclick="salvarDryHop()">Salvar dry hopping</button>
+          <button data-editar-modulo="producao" onclick="salvarDryHop()">Salvar dry hopping</button>
           <div id="dryErro" class="erro"></div>
         </div>
 
@@ -298,7 +308,7 @@
           <label>Observação</label>
           <textarea id="envaseObs"></textarea>
 
-          <button class="btnMobilePrimary" onclick="salvarEnvase()">Conferir e registrar envase</button>
+          <button class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarEnvase()">Conferir e registrar envase</button>
           <div id="envaseErro" class="erro"></div>
         </div>
 
@@ -307,16 +317,16 @@
         <div id="listaProducoes" class="lista"></div>
       </section>
 
-      <section id="telaEstoque" class="tela">
+      <section id="telaEstoque" data-modulo="estoque" class="tela">
         <div class="sectionHeader">
           <h2>Estoque</h2>
         </div>
 
         <div class="actionGrid">
-          <button class="btnMain" onclick="toggleForm('formEntradaCerveja')">+ Entrada cerveja</button>
-          <button class="btnSecondary" onclick="toggleForm('formEntradaInsumo')">+ Compra insumo</button>
-          <button class="btnWarn" onclick="toggleForm('formAjusteCerveja')">📋 Conferir cerveja</button>
-          <button class="btnWarn" onclick="toggleForm('formAjusteInsumo')">📋 Conferir insumo</button>
+          <button class="btnMain" data-editar-modulo="estoque" onclick="toggleForm('formEntradaCerveja')">+ Entrada cerveja</button>
+          <button class="btnSecondary" data-editar-modulo="estoque" onclick="toggleForm('formEntradaInsumo')">+ Compra insumo</button>
+          <button class="btnWarn" data-editar-modulo="estoque" onclick="toggleForm('formAjusteCerveja')">📋 Conferir cerveja</button>
+          <button class="btnWarn" data-editar-modulo="estoque" onclick="toggleForm('formAjusteInsumo')">📋 Conferir insumo</button>
         </div>
 
         <div id="formEntradaCerveja" class="formBox" style="display:none;">
@@ -343,7 +353,7 @@
           <label>Observação</label>
           <textarea id="entradaObs"></textarea>
 
-          <button onclick="salvarEntradaCerveja()">Registrar entrada</button>
+          <button data-editar-modulo="estoque" onclick="salvarEntradaCerveja()">Registrar entrada</button>
           <div id="entradaCervejaErro" class="erro"></div>
         </div>
 
@@ -378,7 +388,7 @@
           <label>Observação</label>
           <textarea id="entradaInsumoObs"></textarea>
 
-          <button onclick="salvarEntradaInsumo()">Registrar compra</button>
+          <button data-editar-modulo="estoque" onclick="salvarEntradaInsumo()">Registrar compra</button>
           <div id="entradaInsumoErro" class="erro"></div>
         </div>
 
@@ -415,7 +425,7 @@
           <label>Responsável</label>
           <input id="ajusteCervejaResp" placeholder="Quem conferiu">
 
-          <button class="btnMobilePrimary" onclick="salvarAjusteCerveja()">Salvar conferência de cerveja</button>
+          <button class="btnMobilePrimary" data-editar-modulo="estoque" onclick="salvarAjusteCerveja()">Salvar conferência de cerveja</button>
           <div id="ajusteCervejaErro" class="erro"></div>
         </div>
 
@@ -446,7 +456,7 @@
           <label>Responsável</label>
           <input id="ajusteInsumoResp" placeholder="Quem conferiu">
 
-          <button class="btnMobilePrimary" onclick="salvarAjusteInsumo()">Salvar conferência de insumo</button>
+          <button class="btnMobilePrimary" data-editar-modulo="estoque" onclick="salvarAjusteInsumo()">Salvar conferência de insumo</button>
           <div id="ajusteInsumoErro" class="erro"></div>
         </div>
 
@@ -476,13 +486,13 @@
         <div id="historicoConferencias" class="lista"></div>
       </section>
 
-      <section id="telaSaidas" class="tela">
+      <section id="telaSaidas" data-modulo="saidas" class="tela">
         <div class="sectionHeader">
           <h2>Saídas</h2>
         </div>
 
         <div class="actionGrid">
-          <button class="btnMain" onclick="toggleForm('formSaida')">+ Registrar saída</button>
+          <button class="btnMain" data-editar-modulo="saidas" onclick="toggleForm('formSaida')">+ Registrar saída</button>
           <button class="btnSecondary" onclick="exportarSaidasCsv()">Exportar saídas CSV</button>
         </div>
 
@@ -498,12 +508,12 @@
           <div class="infoBox">Itens da saída</div>
           <p class="muted">Informe os códigos dos barris enviados ao cliente. Toda saída para cliente baixa o estoque automaticamente.</p>
           <div id="saidaItens"></div>
-          <button type="button" class="btnMini" onclick="adicionarItemSaida()">+ Adicionar outra cerveja</button>
+          <button type="button" class="btnMini" data-editar-modulo="saidas" onclick="adicionarItemSaida()">+ Adicionar outra cerveja</button>
 
           <label>Observação geral</label>
           <textarea id="saidaObs"></textarea>
 
-          <button onclick="salvarSaidaMultipla()">Conferir e registrar saída</button>
+          <button data-editar-modulo="saidas" onclick="salvarSaidaMultipla()">Conferir e registrar saída</button>
           <div id="saidaErro" class="erro"></div>
         </div>
 
@@ -518,21 +528,22 @@
       <section id="telaMais" class="tela">
         <h2>Mais</h2>
         <div class="maisGrid">
-          <div class="maisCard" onclick="mostrarTela('clientes')"><strong>👥 Clientes</strong><span>Cadastro e consulta</span></div>
-          <div class="maisCard" onclick="mostrarTela('cadastros')"><strong>🗂️ Cadastros</strong><span>Cervejas e insumos</span></div>
-          <div class="maisCard" onclick="mostrarTela('lotes')"><strong>🧪 Lotes</strong><span>Ficha completa e histórico</span></div>
-          <div class="maisCard" onclick="mostrarTela('phenomena')"><strong>👽 Phenomena</strong><span>Entradas, estoque e retiradas</span></div>
-          <div class="maisCard" onclick="mostrarTela('retornos')"><strong>↩️ Retornos</strong><span>Retorno de barris dos clientes</span></div>
-          <div class="maisCard" onclick="mostrarTela('painelDia')"><strong>⚠️ Painel do dia</strong><span>Itens zerados e alertas</span></div>
-          <div class="maisCard" onclick="mostrarTela('relatorio')"><strong>📊 Relatório mensal</strong><span>Produção, envase e consumo</span></div>
-          <div class="maisCard" onclick="mostrarTela('auditoria')"><strong>🧾 Auditoria</strong><span>Últimos lançamentos</span></div>
-          <div class="maisCard" onclick="mostrarTela('configuracoes')"><strong>⚙️ Configurações</strong><span>Regras e parâmetros</span></div>
-          <div class="maisCard" onclick="mostrarTela('correcoes')"><strong>🛡️ Correções</strong><span>Estornar lançamentos com segurança</span></div>
-          <div class="maisCard" onclick="mostrarTela('backup')"><strong>💾 Backup</strong><span>Exportar e restaurar dados</span></div>
+          <div class="maisCard" data-modulo="clientes" onclick="mostrarTela('clientes')"><strong>👥 Clientes</strong><span>Cadastro e consulta</span></div>
+          <div class="maisCard" data-modulo="cadastros" onclick="mostrarTela('cadastros')"><strong>🗂️ Cadastros</strong><span>Cervejas e insumos</span></div>
+          <div class="maisCard" data-modulo="lotes" onclick="mostrarTela('lotes')"><strong>🧪 Lotes</strong><span>Ficha completa e histórico</span></div>
+          <div class="maisCard" data-modulo="phenomena" onclick="mostrarTela('phenomena')"><strong>👽 Phenomena</strong><span>Entradas, estoque e retiradas</span></div>
+          <div class="maisCard" data-modulo="saidas" onclick="mostrarTela('retornos')"><strong>↩️ Retornos</strong><span>Retorno de barris dos clientes</span></div>
+          <div class="maisCard" data-modulo="dashboard" onclick="mostrarTela('painelDia')"><strong>⚠️ Painel do dia</strong><span>Itens zerados e alertas</span></div>
+          <div class="maisCard" data-modulo="relatorios" onclick="mostrarTela('relatorio')"><strong>📊 Relatório mensal</strong><span>Produção, envase e consumo</span></div>
+          <div class="maisCard" data-modulo="auditoria" onclick="mostrarTela('auditoria')"><strong>🧾 Auditoria</strong><span>Últimos lançamentos</span></div>
+          <div class="maisCard" data-modulo="administracao" onclick="mostrarTela('configuracoes')"><strong>⚙️ Configurações</strong><span>Regras e parâmetros</span></div>
+          <div class="maisCard" data-modulo="administracao" onclick="mostrarTela('usuarios')"><strong>🔐 Usuários</strong><span>Acessos, perfis e permissões</span></div>
+          <div class="maisCard" data-modulo="administracao" onclick="mostrarTela('correcoes')"><strong>🛡️ Correções</strong><span>Estornar lançamentos com segurança</span></div>
+          <div class="maisCard" data-modulo="administracao" onclick="mostrarTela('backup')"><strong>💾 Backup</strong><span>Exportar e restaurar dados</span></div>
         </div>
       </section>
 
-      <section id="telaLotes" class="tela">
+      <section id="telaLotes" data-modulo="lotes" class="tela">
         <div class="sectionHeader">
           <h2>Lotes</h2>
         </div>
@@ -563,14 +574,14 @@
         </div>
       </section>
 
-      <section id="telaFermentos" class="tela">
+      <section id="telaFermentos" data-modulo="fermentos" class="tela">
         <div class="sectionHeader">
           <h2>Fermentos</h2>
         </div>
 
         <div class="actionGrid">
-          <button class="btnMain" onclick="toggleForm('formColetaFermento')">🧫 Coletar fermento</button>
-          <button class="btnWarn" onclick="toggleForm('formDescarteFermento')">🗑️ Descartar fermento</button>
+          <button class="btnMain" data-editar-modulo="fermentos" onclick="toggleForm('formColetaFermento')">🧫 Coletar fermento</button>
+          <button class="btnWarn" data-editar-modulo="fermentos" onclick="toggleForm('formDescarteFermento')">🗑️ Descartar fermento</button>
         </div>
 
         <div id="formColetaFermento" class="formBox" style="display:none;">
@@ -588,7 +599,7 @@
           <label>Observação</label>
           <textarea id="coletaObs"></textarea>
 
-          <button onclick="salvarColetaFermento()">Salvar coleta</button>
+          <button data-editar-modulo="fermentos" onclick="salvarColetaFermento()">Salvar coleta</button>
           <div id="coletaErro" class="erro"></div>
         </div>
 
@@ -604,7 +615,7 @@
           <label>Motivo</label>
           <textarea id="descarteMotivo"></textarea>
 
-          <button onclick="salvarDescarteFermento()">Registrar descarte</button>
+          <button data-editar-modulo="fermentos" onclick="salvarDescarteFermento()">Registrar descarte</button>
           <div id="descarteErro" class="erro"></div>
         </div>
 
@@ -616,14 +627,14 @@
         <div id="historicoFermentos" class="lista"></div>
       </section>
 
-      <section id="telaPhenomena" class="tela">
+      <section id="telaPhenomena" data-modulo="phenomena" class="tela">
         <div class="sectionHeader">
           <h2>👽 Phenomena</h2>
         </div>
 
         <div class="actionGrid">
-          <button class="btnMain" onclick="toggleForm('formRetiradaPhenomena')">📤 Retirar / gerar débito</button>
-          <button class="btnSuccess" onclick="toggleForm('formPagamentoPhenomena')">✅ Baixar pagamento</button>
+          <button class="btnMain" data-editar-modulo="phenomena" onclick="toggleForm('formRetiradaPhenomena')">📤 Retirar / gerar débito</button>
+          <button class="btnSuccess" data-editar-modulo="phenomena" onclick="toggleForm('formPagamentoPhenomena')">✅ Baixar pagamento</button>
         </div>
 
         <div id="formRetiradaPhenomena" class="formBox" style="display:none;">
@@ -650,7 +661,7 @@
           <label>Observação</label>
           <textarea id="phenRetObs"></textarea>
 
-          <button onclick="salvarRetiradaPhenomena()">Registrar retirada e gerar débito</button>
+          <button data-editar-modulo="phenomena" onclick="salvarRetiradaPhenomena()">Registrar retirada e gerar débito</button>
           <div id="phenRetErro" class="erro"></div>
         </div>
 
@@ -671,7 +682,7 @@
 
           <div class="infoBox" id="phenPagResumo">Selecione um débito.</div>
 
-          <button onclick="salvarPagamentoPhenomena()">Registrar baixa</button>
+          <button data-editar-modulo="phenomena" onclick="salvarPagamentoPhenomena()">Registrar baixa</button>
           <div id="phenPagErro" class="erro"></div>
         </div>
 
@@ -717,14 +728,14 @@
         <div id="retiradasPhenomena" class="lista"></div>
       </section>
 
-      <section id="telaPainelDia" class="tela">
+      <section id="telaPainelDia" data-modulo="dashboard" class="tela">
         <div class="sectionHeader">
           <h2>Painel do dia</h2>
         </div>
         <div id="painelDiaConteudo" class="lista"></div>
       </section>
 
-      <section id="telaRelatorio" class="tela">
+      <section id="telaRelatorio" data-modulo="relatorios" class="tela">
         <div class="sectionHeader">
           <h2>Relatório mensal</h2>
           <button class="btnSmall" onclick="carregarRelatorioMensal(true)">Gerar</button>
@@ -741,7 +752,7 @@
         <div id="relatorioConteudo" class="lista"></div>
       </section>
 
-      <section id="telaAuditoria" class="tela">
+      <section id="telaAuditoria" data-modulo="auditoria" class="tela">
         <div class="sectionHeader">
           <h2>Auditoria</h2>
         </div>
@@ -753,7 +764,7 @@
         <div id="auditoriaAjustes" class="lista"></div>
       </section>
 
-      <section id="telaCorrecoes" class="tela">
+      <section id="telaCorrecoes" data-modulo="administracao" class="tela">
         <div class="sectionHeader">
           <h2>Correções seguras</h2>
         </div>
@@ -799,7 +810,7 @@
             <span>Conferi o lançamento e entendo que ele será estornado.</span>
           </label>
 
-          <button class="btnDangerWide" onclick="executarCorrecaoSelecionada()">Estornar lançamento</button>
+          <button class="btnDangerWide" data-editar-modulo="administracao" onclick="executarCorrecaoSelecionada()">Estornar lançamento</button>
           <div id="correcaoErro" class="erro"></div>
         </div>
 
@@ -807,7 +818,7 @@
         <div id="correcoesHistorico" class="lista"></div>
       </section>
 
-      <section id="telaBackup" class="tela">
+      <section id="telaBackup" data-modulo="administracao" class="tela">
         <div class="sectionHeader">
           <h2>Backup</h2>
         </div>
@@ -842,7 +853,7 @@
             <span>Conferi a prévia e desejo restaurar apenas os registros ausentes.</span>
           </label>
 
-          <button id="backupRestaurarBtn" class="btnDangerWide" onclick="restaurarBackupSeguro()" disabled>
+          <button id="backupRestaurarBtn" class="btnDangerWide" data-editar-modulo="administracao" onclick="restaurarBackupSeguro()" disabled>
             Restaurar registros ausentes
           </button>
 
@@ -853,13 +864,13 @@
         <div id="backupHistoricoRestauracoes" class="lista"></div>
       </section>
 
-      <section id="telaRetornos" class="tela">
+      <section id="telaRetornos" data-modulo="saidas" class="tela">
         <div class="sectionHeader">
           <h2>Retornos</h2>
         </div>
 
         <div class="actionGrid">
-          <button class="btnMain" onclick="toggleForm('formRetorno')">↩️ Registrar retorno</button>
+          <button class="btnMain" data-editar-modulo="saidas" onclick="toggleForm('formRetorno')">↩️ Registrar retorno</button>
           <button class="btnSecondary" onclick="exportarRetornosCsv()">Exportar retornos CSV</button>
         </div>
 
@@ -871,7 +882,7 @@
           <select id="retornoCliente" onchange="atualizarResumoRetornoCliente()"></select>
           <div id="retornoResumoCliente" class="infoBox">Selecione um cliente para ver os barris em aberto.</div>
           <div id="retornoCodigosAbertosCliente" class="infoBox">Códigos em aberto aparecerão aqui.</div>
-          <button type="button" class="btnMini" onclick="preencherRetornoAberto()">Preencher retorno com aberto</button>
+          <button type="button" class="btnMini" data-editar-modulo="saidas" onclick="preencherRetornoAberto()">Preencher retorno com aberto</button>
 
           <label>Cerveja</label>
           <select id="retornoCerveja"></select>
@@ -894,7 +905,7 @@
           <label>Observação</label>
           <textarea id="retornoObs"></textarea>
 
-          <button onclick="salvarRetorno()">Salvar retorno</button>
+          <button data-editar-modulo="saidas" onclick="salvarRetorno()">Salvar retorno</button>
           <div id="retornoErro" class="erro"></div>
         </div>
 
@@ -913,7 +924,85 @@
         <div id="listaRetornos" class="lista"></div>
       </section>
 
-      <section id="telaConfiguracoes" class="tela">
+      <section id="telaUsuarios" data-modulo="administracao" class="tela">
+        <div class="sectionHeader">
+          <h2>Usuários e acessos</h2>
+        </div>
+
+        <div class="box">
+          <h3>Como criar um novo login</h3>
+          <p class="muted">Por segurança, a senha não é criada dentro do app.</p>
+          <ol class="simpleSteps">
+            <li>No Supabase, abra <strong>Authentication &gt; Users</strong>.</li>
+            <li>Clique em <strong>Add user &gt; Create new user</strong>.</li>
+            <li>Informe e-mail e uma senha temporária e marque <strong>Auto Confirm User</strong>.</li>
+            <li>Volte aqui, ative o usuário e escolha o perfil.</li>
+          </ol>
+          <div class="infoBox">O novo usuário nasce bloqueado. Ele só acessa o ERP depois da ativação nesta tela.</div>
+        </div>
+
+        <div id="usuariosResumo" class="gridCards"></div>
+        <h3>Usuários cadastrados</h3>
+        <div id="listaUsuariosAcesso" class="lista"></div>
+
+        <div id="formUsuarioAcesso" class="formBox" style="display:none;">
+          <h3>Editar acesso</h3>
+          <input id="usuarioAcessoId" type="hidden">
+
+          <label>Nome</label>
+          <input id="usuarioAcessoNome">
+
+          <label>E-mail</label>
+          <input id="usuarioAcessoEmail" disabled>
+
+          <label>Perfil</label>
+          <select id="usuarioAcessoPerfil" onchange="aplicarPerfilPadraoFormulario()">
+            <option value="ADMIN">Administrador</option>
+            <option value="PRODUCAO">Produção</option>
+            <option value="ENTREGA">Entrega/Vendas</option>
+            <option value="CONSULTA">Consulta</option>
+          </select>
+
+          <label class="checkLine">
+            <input id="usuarioAcessoAtivo" type="checkbox">
+            <span>Usuário ativo</span>
+          </label>
+
+          <div class="permissionHeader">
+            <strong>Permissões por módulo</strong>
+            <span>Visualizar / Alterar</span>
+          </div>
+          <div id="usuarioPermissoesGrid" class="permissionGrid"></div>
+
+          <button class="btnMain" data-editar-modulo="administracao" onclick="salvarUsuarioAcesso()">Salvar acesso</button>
+          <div id="usuarioAcessoErro" class="erro"></div>
+        </div>
+      </section>
+
+      <section id="telaMinhaConta" class="tela">
+        <div class="sectionHeader">
+          <h2>Minha conta</h2>
+          <button class="btnSmall" onclick="mostrarTela('inicio')">Fechar</button>
+        </div>
+
+        <div class="box">
+          <h3 id="minhaContaNome">Usuário</h3>
+          <div id="minhaContaEmail" class="sub"></div>
+          <div id="minhaContaPerfil" class="userRoleBadge"></div>
+        </div>
+
+        <div class="formBox" style="display:block;">
+          <h3>Trocar minha senha</h3>
+          <label>Nova senha</label>
+          <input id="minhaContaSenha" type="password" minlength="8" placeholder="Mínimo de 8 caracteres">
+          <label>Confirmar nova senha</label>
+          <input id="minhaContaSenhaConfirmar" type="password" minlength="8">
+          <button onclick="trocarMinhaSenha()">Alterar senha</button>
+          <div id="minhaContaErro" class="erro"></div>
+        </div>
+      </section>
+
+      <section id="telaConfiguracoes" data-modulo="administracao" class="tela">
         <div class="sectionHeader">
           <h2>Configurações</h2>
         </div>
@@ -948,18 +1037,18 @@
           <label>Mínimo padrão de fermento</label>
           <input id="configMinFermento" type="number" min="0" step="0.01">
 
-          <button onclick="salvarConfiguracoes()">Salvar configurações</button>
+          <button data-editar-modulo="administracao" onclick="salvarConfiguracoes()">Salvar configurações</button>
           <div id="configErro" class="erro"></div>
         </div>
       </section>
 
-      <section id="telaClientes" class="tela">
+      <section id="telaClientes" data-modulo="clientes" class="tela">
         <div class="sectionHeader">
           <h2>Clientes</h2>
         </div>
 
         <div class="actionGrid">
-          <button class="btnMain" onclick="novoCliente()">+ Novo Cliente</button>
+          <button class="btnMain" data-editar-modulo="clientes" onclick="novoCliente()">+ Novo Cliente</button>
           <button class="btnSecondary" onclick="toggleForm('formExtratoCliente')">📋 Extrato cliente</button>
         </div>
 
@@ -980,7 +1069,7 @@
           <label>Observação</label>
           <textarea id="cliObs"></textarea>
 
-          <button onclick="salvarCliente()">Salvar cliente</button>
+          <button data-editar-modulo="clientes" onclick="salvarCliente()">Salvar cliente</button>
           <div id="cliErro" class="erro"></div>
         </div>
 
@@ -999,13 +1088,13 @@
         <div id="listaClientes" class="lista"></div>
       </section>
 
-      <section id="telaCadastros" class="tela">
+      <section id="telaCadastros" data-modulo="cadastros" class="tela">
         <div class="sectionHeader">
           <h2>Cadastros</h2>
         </div>
 
-        <button class="btnMain" onclick="novaCerveja()">+ Cerveja</button>
-        <button class="btnSecondary" onclick="novoInsumo()">+ Insumo</button>
+        <button class="btnMain" data-editar-modulo="cadastros" onclick="novaCerveja()">+ Cerveja</button>
+        <button class="btnSecondary" data-editar-modulo="cadastros" onclick="novoInsumo()">+ Insumo</button>
 
         <div id="formCerveja" class="formBox" style="display:none;">
           <input id="cadCervejaId" type="hidden">
@@ -1015,7 +1104,7 @@
           <input id="cadCervejaEstilo">
           <label>Marca</label>
           <input id="cadCervejaMarca">
-          <button onclick="salvarCerveja()">Salvar cerveja</button>
+          <button data-editar-modulo="cadastros" onclick="salvarCerveja()">Salvar cerveja</button>
           <div id="cadCervejaErro" class="erro"></div>
         </div>
 
@@ -1039,7 +1128,7 @@
           <input id="cadInsumoFornecedor">
           <label>Estoque mínimo</label>
           <input id="cadInsumoMinimo" type="number" min="0" step="0.001">
-          <button onclick="salvarInsumo()">Salvar insumo</button>
+          <button data-editar-modulo="cadastros" onclick="salvarInsumo()">Salvar insumo</button>
           <div id="cadInsumoErro" class="erro"></div>
         </div>
 
@@ -1052,14 +1141,14 @@
     </main>
 
     <nav class="bottomNav">
-      <button class="active" onclick="mostrarTela('inicio')">🏠<span>Início</span></button>
-      <button onclick="mostrarTela('producao')">🧪<span>Produção</span></button>
-      <button onclick="mostrarTela('estoque')">📦<span>Estoque</span></button>
-      <button onclick="mostrarTela('saidas')">🚚<span>Saídas</span></button>
+      <button class="active" data-modulo="dashboard" onclick="mostrarTela('inicio')">🏠<span>Início</span></button>
+      <button data-modulo="producao" onclick="mostrarTela('producao')">🧪<span>Produção</span></button>
+      <button data-modulo="estoque" onclick="mostrarTela('estoque')">📦<span>Estoque</span></button>
+      <button data-modulo="saidas" onclick="mostrarTela('saidas')">🚚<span>Saídas</span></button>
       <button onclick="mostrarTela('mais')">☰<span>Mais</span></button>
     </nav>
   </div>
 
-  <script src="./app.js?v=correcoes-backup-20260714"></script>
+  <script src="./app.js?v=controle-acesso-usuarios-20260714"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 
-const APP_BUILD = "correcoes-backup-20260714";
+const APP_BUILD = "controle-acesso-usuarios-20260714";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -8316,5 +8316,434 @@ async function carregarHistoricoRestauracoes() {
       </div>
     `);
   });
+}
+
+
+
+/* ==========================================================
+   CONTROLE DE ACESSO POR USUÁRIO
+   ========================================================== */
+
+const MODULOS_ACESSO = [
+  { id:"dashboard", nome:"Dashboard" },
+  { id:"producao", nome:"Produção e envase" },
+  { id:"estoque", nome:"Estoque" },
+  { id:"saidas", nome:"Saídas e retornos" },
+  { id:"clientes", nome:"Clientes" },
+  { id:"lotes", nome:"Lotes" },
+  { id:"fermentos", nome:"Fermentos" },
+  { id:"phenomena", nome:"Phenomena" },
+  { id:"relatorios", nome:"Relatórios" },
+  { id:"auditoria", nome:"Auditoria" },
+  { id:"cadastros", nome:"Cadastros" }
+];
+
+const TELA_MODULO_ACESSO = {
+  busca:"dashboard", inicio:"dashboard", producao:"producao",
+  estoque:"estoque", saidas:"saidas", fermentos:"fermentos",
+  phenomena:"phenomena", retornos:"saidas", painelDia:"dashboard",
+  relatorio:"relatorios", auditoria:"auditoria", configuracoes:"administracao",
+  correcoes:"administracao", backup:"administracao", usuarios:"administracao",
+  lotes:"lotes", clientes:"clientes", cadastros:"cadastros"
+};
+
+function permissoesPadraoPerfil(perfil) {
+  const vazio = {};
+  [...MODULOS_ACESSO, {id:"administracao"}].forEach(m => {
+    vazio[m.id] = { ver:false, editar:false };
+  });
+
+  if (perfil === "ADMIN") {
+    Object.keys(vazio).forEach(k => vazio[k] = { ver:true, editar:true });
+    return vazio;
+  }
+
+  const liberar = (modulo, editar=false) => {
+    vazio[modulo] = { ver:true, editar:!!editar };
+  };
+
+  if (perfil === "PRODUCAO") {
+    liberar("dashboard");
+    liberar("producao",true);
+    liberar("estoque",true);
+    liberar("lotes",true);
+    liberar("fermentos",true);
+    liberar("relatorios");
+    liberar("auditoria");
+    liberar("cadastros");
+  } else if (perfil === "ENTREGA") {
+    liberar("dashboard");
+    liberar("estoque");
+    liberar("saidas",true);
+    liberar("clientes",true);
+  } else {
+    [
+      "dashboard","producao","estoque","saidas","clientes",
+      "lotes","fermentos","relatorios","auditoria","cadastros"
+    ].forEach(m => liberar(m));
+  }
+
+  return vazio;
+}
+
+function rotuloPerfilAcesso(perfil) {
+  return {
+    ADMIN:"Administrador",
+    PRODUCAO:"Produção",
+    ENTREGA:"Entrega/Vendas",
+    CONSULTA:"Consulta"
+  }[perfil] || perfil || "-";
+}
+
+function podeVerModulo(modulo) {
+  const u = state.usuarioAtual;
+  if (!u || !u.ativo) return false;
+  if (modulo === "administracao") return u.perfil === "ADMIN";
+  if (u.perfil === "ADMIN") return true;
+  return !!u.permissoes?.[modulo]?.ver;
+}
+
+function podeEditarModulo(modulo) {
+  const u = state.usuarioAtual;
+  if (!u || !u.ativo) return false;
+  if (modulo === "administracao") return u.perfil === "ADMIN";
+  if (u.perfil === "ADMIN") return true;
+  return !!u.permissoes?.[modulo]?.editar;
+}
+
+function mostrarAcessoAguardando(mensagem) {
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("app").style.display = "none";
+  const screen = document.getElementById("accessScreen");
+  screen.style.display = "flex";
+  document.getElementById("accessScreenMessage").innerText = mensagem ||
+    "Seu login existe, mas ainda não foi ativado pelo administrador.";
+}
+
+async function carregarUsuarioAtual() {
+  const { data:sessao } = await sb.auth.getSession();
+  const authUser = sessao.session?.user;
+  if (!authUser) return null;
+
+  const { data, error } = await sb.from("usuarios_app")
+    .select("*")
+    .eq("id",authUser.id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  data.email = data.email || authUser.email;
+  data.permissoes = data.permissoes || permissoesPadraoPerfil(data.perfil);
+  state.usuarioAtual = data;
+  return data;
+}
+
+function aplicarPermissoesInterface() {
+  const usuario = state.usuarioAtual;
+  if (!usuario) return;
+
+  document.querySelectorAll("[data-modulo]").forEach(el => {
+    const modulo = el.dataset.modulo;
+    el.style.display = podeVerModulo(modulo) ? "" : "none";
+  });
+
+  document.querySelectorAll("[data-editar-modulo]").forEach(el => {
+    el.style.display = podeEditarModulo(el.dataset.editarModulo) ? "" : "none";
+  });
+
+  const btn = document.getElementById("btnUsuarioAtual");
+  if (btn) btn.innerText = usuario.nome || usuario.email || "Minha conta";
+
+  document.getElementById("minhaContaNome").innerText = usuario.nome || "Usuário";
+  document.getElementById("minhaContaEmail").innerText = usuario.email || "";
+  document.getElementById("minhaContaPerfil").innerText = rotuloPerfilAcesso(usuario.perfil);
+}
+
+async function iniciarApp() {
+  try {
+    const usuario = await carregarUsuarioAtual();
+    if (!usuario) {
+      mostrarAcessoAguardando("O perfil deste login ainda não foi criado. Peça ao administrador para executar a atualização de acesso.");
+      return;
+    }
+    if (!usuario.ativo) {
+      mostrarAcessoAguardando(`O acesso de ${usuario.email || "este usuário"} está aguardando ativação pelo administrador.`);
+      return;
+    }
+
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("accessScreen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+
+    if (typeof instalarProtecaoFormularios === "function") instalarProtecaoFormularios();
+    aplicarPermissoesInterface();
+
+    const primeiraTela = podeVerModulo("dashboard") ? "inicio"
+      : podeVerModulo("producao") ? "producao"
+      : podeVerModulo("estoque") ? "estoque"
+      : podeVerModulo("saidas") ? "saidas"
+      : "mais";
+
+    mostrarTela(primeiraTela);
+  } catch(e) {
+    mostrarAcessoAguardando("Não foi possível conferir as permissões: " + e.message);
+  }
+}
+
+async function login() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginSenha").value;
+  const erro = document.getElementById("loginErro");
+  erro.style.display = "none";
+
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    erro.innerText = error.message;
+    erro.style.display = "block";
+    return;
+  }
+  await iniciarApp();
+}
+
+const mostrarTelaSemControleAcesso = mostrarTela;
+mostrarTela = function(nome) {
+  if (nome === "minhaConta") {
+    document.querySelectorAll(".tela").forEach(t => t.classList.remove("active"));
+    document.getElementById("telaMinhaConta").classList.add("active");
+    aplicarPermissoesInterface();
+    return;
+  }
+
+  const modulo = TELA_MODULO_ACESSO[nome];
+  if (modulo && !podeVerModulo(modulo)) {
+    alert("Seu usuário não possui acesso a esta área.");
+    return;
+  }
+
+  if (nome === "usuarios") {
+    document.querySelectorAll(".tela").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".bottomNav button").forEach(b => b.classList.remove("active"));
+    document.getElementById("telaUsuarios").classList.add("active");
+    document.querySelectorAll(".bottomNav button")[4]?.classList.add("active");
+    carregarUsuariosAcesso();
+    aplicarPermissoesInterface();
+    return;
+  }
+
+  mostrarTelaSemControleAcesso(nome);
+  aplicarPermissoesInterface();
+};
+
+function bloquearAcaoSemPermissao(evento, modulo) {
+  if (podeEditarModulo(modulo)) return false;
+  evento.preventDefault();
+  evento.stopPropagation();
+  evento.stopImmediatePropagation();
+  alert("Seu perfil permite somente consultar esta área.");
+  return true;
+}
+
+document.addEventListener("click", event => {
+  const el = event.target.closest("[data-editar-modulo]");
+  if (el) bloquearAcaoSemPermissao(event,el.dataset.editarModulo);
+}, true);
+
+const alterarStatusLoteSemAcesso = typeof alterarStatusLote === "function" ? alterarStatusLote : null;
+if (alterarStatusLoteSemAcesso) {
+  alterarStatusLote = async function(...args) {
+    if (!podeEditarModulo("lotes") && !podeEditarModulo("producao")) {
+      alert("Seu perfil não pode alterar o status do lote.");
+      return;
+    }
+    return alterarStatusLoteSemAcesso(...args);
+  };
+}
+
+const abrirEnvaseDoLoteSemAcesso = typeof abrirEnvaseDoLote === "function" ? abrirEnvaseDoLote : null;
+if (abrirEnvaseDoLoteSemAcesso) {
+  abrirEnvaseDoLote = async function(...args) {
+    if (!podeEditarModulo("producao")) {
+      alert("Seu perfil não pode registrar envases.");
+      return;
+    }
+    return abrirEnvaseDoLoteSemAcesso(...args);
+  };
+}
+
+async function trocarMinhaSenha() {
+  mostrarErro("minhaContaErro","");
+  const senha = document.getElementById("minhaContaSenha").value;
+  const confirmar = document.getElementById("minhaContaSenhaConfirmar").value;
+
+  if (senha.length < 8) {
+    mostrarErro("minhaContaErro","A nova senha precisa ter pelo menos 8 caracteres.");
+    return;
+  }
+  if (senha !== confirmar) {
+    mostrarErro("minhaContaErro","As senhas não são iguais.");
+    return;
+  }
+
+  const { error } = await sb.auth.updateUser({ password:senha });
+  if (error) {
+    mostrarErro("minhaContaErro",error.message);
+    return;
+  }
+
+  document.getElementById("minhaContaSenha").value = "";
+  document.getElementById("minhaContaSenhaConfirmar").value = "";
+  alert("Senha alterada.");
+}
+
+function renderPermissoesUsuario(permissoes) {
+  const grid = document.getElementById("usuarioPermissoesGrid");
+  grid.innerHTML = "";
+
+  MODULOS_ACESSO.forEach(modulo => {
+    const p = permissoes?.[modulo.id] || { ver:false, editar:false };
+    grid.insertAdjacentHTML("beforeend", `
+      <div class="permissionRow">
+        <strong>${escapeHtml(modulo.nome)}</strong>
+        <label class="permissionToggle">Ver
+          <input type="checkbox" data-permissao-modulo="${modulo.id}" data-permissao-acao="ver" ${p.ver ? "checked" : ""}>
+        </label>
+        <label class="permissionToggle">Alterar
+          <input type="checkbox" data-permissao-modulo="${modulo.id}" data-permissao-acao="editar" ${p.editar ? "checked" : ""}>
+        </label>
+      </div>
+    `);
+  });
+}
+
+function coletarPermissoesFormulario() {
+  const p = permissoesPadraoPerfil("CONSULTA");
+  Object.keys(p).forEach(k => p[k] = { ver:false, editar:false });
+
+  document.querySelectorAll("[data-permissao-modulo]").forEach(input => {
+    const modulo = input.dataset.permissaoModulo;
+    const acao = input.dataset.permissaoAcao;
+    p[modulo] ||= { ver:false, editar:false };
+    p[modulo][acao] = input.checked;
+  });
+
+  Object.keys(p).forEach(modulo => {
+    if (p[modulo].editar) p[modulo].ver = true;
+  });
+  return p;
+}
+
+function aplicarPerfilPadraoFormulario() {
+  const perfil = document.getElementById("usuarioAcessoPerfil").value;
+  renderPermissoesUsuario(permissoesPadraoPerfil(perfil));
+  const disabled = perfil === "ADMIN";
+  document.querySelectorAll("[data-permissao-modulo]").forEach(i => {
+    if (disabled) i.checked = true;
+    i.disabled = disabled;
+  });
+}
+
+async function carregarUsuariosAcesso() {
+  if (state.usuarioAtual?.perfil !== "ADMIN") return;
+
+  const { data, error } = await sb.from("usuarios_app")
+    .select("*")
+    .order("ativo",{ascending:false})
+    .order("nome",{ascending:true});
+
+  const box = document.getElementById("listaUsuariosAcesso");
+  if (error) {
+    box.innerHTML = `<div class="item"><span class="sub">${escapeHtml(error.message)}</span></div>`;
+    return;
+  }
+
+  state.usuariosAcesso = data || [];
+  const ativos = state.usuariosAcesso.filter(u => u.ativo).length;
+  const pendentes = state.usuariosAcesso.filter(u => !u.ativo).length;
+  const admins = state.usuariosAcesso.filter(u => u.ativo && u.perfil === "ADMIN").length;
+
+  document.getElementById("usuariosResumo").innerHTML = `
+    <div class="card"><span>Usuários</span><strong>${state.usuariosAcesso.length}</strong></div>
+    <div class="card"><span>Ativos</span><strong>${ativos}</strong></div>
+    <div class="card"><span>Aguardando</span><strong>${pendentes}</strong></div>
+    <div class="card"><span>Administradores</span><strong>${admins}</strong></div>
+  `;
+
+  box.innerHTML = state.usuariosAcesso.length ? "" : '<div class="item"><span class="sub">Nenhum usuário encontrado.</span></div>';
+  state.usuariosAcesso.forEach((u,idx) => {
+    box.insertAdjacentHTML("beforeend", `
+      <div class="item searchable ${u.ativo ? "userActive" : "userInactive"}">
+        <div>
+          <strong>${escapeHtml(u.nome || u.email || "Usuário")}</strong>
+          <div class="sub">${escapeHtml(u.email || "")}</div>
+          <div class="sub">${escapeHtml(rotuloPerfilAcesso(u.perfil))} • ${u.ativo ? "Ativo" : "Aguardando ativação"}</div>
+          <div class="rowActions">
+            <button class="btnTiny btnEdit" data-editar-modulo="administracao" onclick="editarUsuarioAcesso(${idx})">Editar acesso</button>
+          </div>
+        </div>
+        <span class="badge ${u.ativo ? "" : "zero"}">${u.ativo ? "ATIVO" : "BLOQUEADO"}</span>
+      </div>
+    `);
+  });
+  aplicarPermissoesInterface();
+}
+
+function editarUsuarioAcesso(idx) {
+  const u = state.usuariosAcesso?.[idx];
+  if (!u) return;
+
+  document.getElementById("usuarioAcessoId").value = u.id;
+  document.getElementById("usuarioAcessoNome").value = u.nome || "";
+  document.getElementById("usuarioAcessoEmail").value = u.email || "";
+  document.getElementById("usuarioAcessoPerfil").value = u.perfil || "CONSULTA";
+  document.getElementById("usuarioAcessoAtivo").checked = !!u.ativo;
+  renderPermissoesUsuario(u.permissoes || permissoesPadraoPerfil(u.perfil));
+
+  if (u.perfil === "ADMIN") {
+    document.querySelectorAll("[data-permissao-modulo]").forEach(i => {
+      i.checked = true;
+      i.disabled = true;
+    });
+  }
+
+  mostrarErro("usuarioAcessoErro","");
+  const form = document.getElementById("formUsuarioAcesso");
+  form.style.display = "block";
+  form.scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+async function salvarUsuarioAcesso() {
+  mostrarErro("usuarioAcessoErro","");
+  if (state.usuarioAtual?.perfil !== "ADMIN") {
+    mostrarErro("usuarioAcessoErro","Somente administradores podem alterar acessos.");
+    return;
+  }
+
+  const id = document.getElementById("usuarioAcessoId").value;
+  const nome = document.getElementById("usuarioAcessoNome").value.trim();
+  const perfil = document.getElementById("usuarioAcessoPerfil").value;
+  const ativo = document.getElementById("usuarioAcessoAtivo").checked;
+  const permissoes = perfil === "ADMIN"
+    ? permissoesPadraoPerfil("ADMIN")
+    : coletarPermissoesFormulario();
+
+  const { error } = await sb.from("usuarios_app")
+    .update({ nome,perfil,ativo,permissoes,atualizado_em:new Date().toISOString() })
+    .eq("id",id);
+
+  if (error) {
+    mostrarErro("usuarioAcessoErro",error.message);
+    return;
+  }
+
+  document.getElementById("formUsuarioAcesso").style.display = "none";
+
+  if (id === state.usuarioAtual.id) {
+    await carregarUsuarioAtual();
+    aplicarPermissoesInterface();
+  }
+
+  alert("Acesso atualizado.");
+  await carregarUsuariosAcesso();
 }
 

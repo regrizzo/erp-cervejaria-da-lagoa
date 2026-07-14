@@ -644,3 +644,81 @@ h3 { margin:18px 0 10px; }
   background:#0ea5e9;
   transition:width .2s ease;
 }
+
+
+/* Controle de acesso */
+.userTopButton {
+  max-width:150px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.simpleSteps {
+  margin:8px 0 12px 20px;
+  padding:0;
+  color:#334155;
+  font-size:13px;
+}
+.simpleSteps li { margin-bottom:7px; }
+.permissionHeader {
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  margin:14px 0 8px;
+  padding-bottom:7px;
+  border-bottom:1px solid var(--border);
+  color:#0f172a;
+}
+.permissionHeader span {
+  color:#64748b;
+  font-size:11px;
+  font-weight:800;
+}
+.permissionGrid {
+  display:grid;
+  gap:7px;
+  margin-bottom:14px;
+}
+.permissionRow {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 78px 78px;
+  gap:7px;
+  align-items:center;
+  padding:8px;
+  border:1px solid var(--border);
+  border-radius:11px;
+  background:#f8fafc;
+}
+.permissionRow strong { font-size:12px; }
+.permissionToggle {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:3px;
+  font-size:9px;
+  color:#64748b;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.permissionToggle input { width:auto; margin:0; }
+.userRoleBadge {
+  display:inline-flex;
+  margin-top:8px;
+  padding:6px 9px;
+  border-radius:999px;
+  background:#dbeafe;
+  color:#1d4ed8;
+  font-size:11px;
+  font-weight:900;
+}
+.userInactive { border-left:4px solid #ef4444; }
+.userActive { border-left:4px solid #22c55e; }
+.accessDeniedBox {
+  text-align:center;
+  padding:20px;
+  color:#991b1b;
+}
+@media (max-width:520px) {
+  .userTopButton { max-width:92px; font-size:11px; }
+  .permissionRow { grid-template-columns:minmax(0,1fr) 62px 62px; }
+}
