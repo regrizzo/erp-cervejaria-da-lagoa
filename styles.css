@@ -358,3 +358,45 @@ h3 { margin:18px 0 10px; }
   font-size:11px;
   text-transform:uppercase;
 }
+
+
+/* Controle de códigos de barris em clientes */
+.codigoGrid {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:8px;
+}
+.codigoTag {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:5px 8px;
+  border-radius:999px;
+  background:#eef2ff;
+  color:#1e293b;
+  font-size:11px;
+  font-weight:900;
+  border:1px solid #c7d2fe;
+}
+.codigoTag.atrasado {
+  background:#fee2e2;
+  border-color:#fecaca;
+  color:#991b1b;
+}
+.codigoTag.ok {
+  background:#dcfce7;
+  border-color:#bbf7d0;
+  color:#166534;
+}
+.codigosBox {
+  margin-top:8px;
+  padding:8px;
+  background:#f8fafc;
+  border:1px solid var(--border);
+  border-radius:12px;
+}
+.codigosBox strong {
+  display:block;
+  margin-bottom:4px;
+}

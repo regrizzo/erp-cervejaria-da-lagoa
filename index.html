@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>ERP Cervejaria</title>
 
-  <link rel="manifest" href="./manifest.json?v=updates-saidas-retornos-clientes-phenomena-20260714" />
+  <link rel="manifest" href="./manifest.json?v=codigos-barris-baixa-obrigatoria-20260714" />
   <link rel="icon" type="image/png" href="https://regrizzo.github.io/erp-cervejaria-icons/icon-192.png" />
   <link rel="apple-touch-icon" href="https://regrizzo.github.io/erp-cervejaria-icons/apple-touch-icon-180.png" />
   <meta name="theme-color" content="#0c2949" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=updates-saidas-retornos-clientes-phenomena-20260714" />
+  <link rel="stylesheet" href="./styles.css?v=codigos-barris-baixa-obrigatoria-20260714" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -447,6 +447,7 @@
           <input id="saidaResponsavel" placeholder="Quem lançou">
 
           <div class="infoBox">Itens da saída</div>
+          <p class="muted">Informe os códigos dos barris enviados ao cliente. Toda saída para cliente baixa o estoque automaticamente.</p>
           <div id="saidaItens"></div>
           <button type="button" class="btnMini" onclick="adicionarItemSaida()">+ Adicionar outra cerveja</button>
 
@@ -736,6 +737,7 @@
           <label>Cliente</label>
           <select id="retornoCliente" onchange="atualizarResumoRetornoCliente()"></select>
           <div id="retornoResumoCliente" class="infoBox">Selecione um cliente para ver os barris em aberto.</div>
+          <div id="retornoCodigosAbertosCliente" class="infoBox">Códigos em aberto aparecerão aqui.</div>
           <button type="button" class="btnMini" onclick="preencherRetornoAberto()">Preencher retorno com aberto</button>
 
           <label>Cerveja</label>
@@ -928,6 +930,6 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=updates-saidas-retornos-clientes-phenomena-20260714"></script>
+  <script src="./app.js?v=codigos-barris-baixa-obrigatoria-20260714"></script>
 </body>
 </html>
