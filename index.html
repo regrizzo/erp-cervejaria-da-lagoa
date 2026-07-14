@@ -39,7 +39,7 @@
     <header class="topbar">
       <div>
         <div class="appTitle">ERP Cervejaria</div>
-        <div class="appSub">Supabase • V7 débito Phenomena</div>
+        <div class="appSub">Supabase • V8 retornos e config</div>
       </div>
       <button class="btnGhost" onclick="logout()">Sair</button>
     </header>
@@ -58,6 +58,7 @@
           <div class="card"><span>🌿 Lúpulo</span><strong id="cardLupulo">0 G</strong></div>
           <div class="card"><span>🧫 Fermento</span><strong id="cardFermento">0 UN</strong></div>
           <div class="card"><span>👥 Clientes</span><strong id="cardClientes">0</strong></div>
+          <div class="card"><span>🛢️ Barris em clientes</span><strong id="cardBarrisClientes">0</strong></div>
         </div>
 
         <div class="box">
@@ -378,9 +379,11 @@
           <div class="maisCard" onclick="mostrarTela('cadastros')"><strong>🗂️ Cadastros</strong><span>Cervejas e insumos</span></div>
           <div class="maisCard" onclick="mostrarTela('fermentos')"><strong>🧫 Fermentos</strong><span>Coleta, reuso e descarte</span></div>
           <div class="maisCard" onclick="mostrarTela('phenomena')"><strong>💰 Phenomena</strong><span>Entradas, estoque e retiradas</span></div>
+          <div class="maisCard" onclick="mostrarTela('retornos')"><strong>↩️ Retornos</strong><span>Retorno de barris dos clientes</span></div>
           <div class="maisCard" onclick="mostrarTela('painelDia')"><strong>⚠️ Painel do dia</strong><span>Itens zerados e alertas</span></div>
           <div class="maisCard" onclick="mostrarTela('relatorio')"><strong>📊 Relatório mensal</strong><span>Produção, envase e consumo</span></div>
           <div class="maisCard" onclick="mostrarTela('auditoria')"><strong>🧾 Auditoria</strong><span>Últimos lançamentos</span></div>
+          <div class="maisCard" onclick="mostrarTela('configuracoes')"><strong>⚙️ Configurações</strong><span>Regras e parâmetros</span></div>
           <div class="maisCard" onclick="mostrarTela('backup')"><strong>💾 Backup</strong><span>Exportar dados em JSON</span></div>
         </div>
       </section>
@@ -562,6 +565,84 @@
           <p class="muted">Gera um arquivo JSON com os principais dados do Supabase e baixa no seu celular/computador.</p>
           <button onclick="gerarBackupJson()">💾 Gerar backup JSON</button>
           <div id="backupStatus" class="muted" style="margin-top:10px;"></div>
+        </div>
+      </section>
+
+      <section id="telaRetornos" class="tela">
+        <div class="sectionHeader">
+          <h2>Retornos</h2>
+          <button class="btnSmall" onclick="carregarRetornos(true)">Atualizar</button>
+        </div>
+
+        <button class="btnMain" onclick="toggleForm('formRetorno')">↩️ Registrar retorno</button>
+
+        <div id="formRetorno" class="formBox" style="display:none;">
+          <h3>Retorno de barris</h3>
+          <p class="muted">Registre os barris vazios que voltaram do cliente. Isso não altera o estoque de cerveja.</p>
+
+          <label>Cliente</label>
+          <select id="retornoCliente"></select>
+
+          <label>Cerveja</label>
+          <select id="retornoCerveja"></select>
+
+          <div class="linha2">
+            <div><label>Barris 10L</label><input id="retornoQ10" type="number" min="0" value="0"></div>
+            <div><label>Barris 20L</label><input id="retornoQ20" type="number" min="0" value="0"></div>
+          </div>
+          <div class="linha2">
+            <div><label>Barris 30L</label><input id="retornoQ30" type="number" min="0" value="0"></div>
+            <div><label>Barris 50L</label><input id="retornoQ50" type="number" min="0" value="0"></div>
+          </div>
+
+          <label>Códigos dos barris</label>
+          <input id="retornoCodigos" placeholder="Ex: BR30-01, BR50-03">
+
+          <label>Responsável</label>
+          <input id="retornoResp" placeholder="Quem recebeu">
+
+          <label>Observação</label>
+          <textarea id="retornoObs"></textarea>
+
+          <button onclick="salvarRetorno()">Salvar retorno</button>
+          <div id="retornoErro" class="erro"></div>
+        </div>
+
+        <div class="gridCards">
+          <div class="card"><span>Barris em clientes</span><strong id="retornosBarrisAbertos">0</strong></div>
+          <div class="card"><span>Retornos registrados</span><strong id="retornosTotalRegistrados">0</strong></div>
+        </div>
+
+        <h3>Barris em aberto por cliente</h3>
+        <div id="barrisPorCliente" class="lista"></div>
+
+        <h3>Retornos recentes</h3>
+        <div id="listaRetornos" class="lista"></div>
+      </section>
+
+      <section id="telaConfiguracoes" class="tela">
+        <div class="sectionHeader">
+          <h2>Configurações</h2>
+          <button class="btnSmall" onclick="carregarConfiguracoes(true)">Atualizar</button>
+        </div>
+
+        <div class="formBox" style="display:block;">
+          <h3>Regras do ERP</h3>
+
+          <label>Valor Phenomena por litro (R$)</label>
+          <input id="configValorPhenomena" type="number" min="0" step="0.01">
+
+          <label>Dias para alerta de barril em cliente</label>
+          <input id="configDiasBarrilCliente" type="number" min="1" step="1">
+
+          <label>Dias para alerta de lote fermentando</label>
+          <input id="configDiasLoteFermentando" type="number" min="1" step="1">
+
+          <label>Dias para alerta de validade de insumos</label>
+          <input id="configDiasValidadeInsumos" type="number" min="1" step="1">
+
+          <button onclick="salvarConfiguracoes()">Salvar configurações</button>
+          <div id="configErro" class="erro"></div>
         </div>
       </section>
 
