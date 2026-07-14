@@ -1,5 +1,5 @@
 
-const APP_BUILD = "link-erp-cervejaria-da-lagoa-20260714";
+const APP_BUILD = "logo-original-cervejaria-da-lagoa-20260714";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -3032,7 +3032,7 @@ function exportarRelatorioMensalCsv() {
 
   const r = state.ultimoRelatorioMensal;
   const linhas = [];
-  linhas.push(["ERP Cervejaria - Relatório mensal"]);
+  linhas.push(["ERP Cervejaria da Lagoa - Relatório mensal"]);
   linhas.push(["Mês", r.mes]);
   linhas.push([]);
   linhas.push(["Indicador","Valor"]);
@@ -3124,7 +3124,7 @@ async function gerarBackupJson() {
 
   const backup = {
     gerado_em: new Date().toISOString(),
-    projeto: "ERP Cervejaria sistema",
+    projeto: "ERP Cervejaria da Lagoa",
     tabelas: {}
   };
 
@@ -7986,7 +7986,7 @@ async function gerarBackupJson() {
   const backup = {
     versao:2,
     gerado_em:new Date().toISOString(),
-    projeto:"ERP Cervejaria sistema",
+    projeto:"ERP Cervejaria da Lagoa",
     tabelas:{}
   };
 
