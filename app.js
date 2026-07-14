@@ -1,5 +1,5 @@
 
-const APP_BUILD = "controle-acesso-usuarios-20260714";
+const APP_BUILD = "cadastro-na-tela-login-20260714";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -45,6 +45,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 function mostrarLogin() {
   document.getElementById("loginScreen").style.display = "flex";
+  const cadastro = document.getElementById("cadastroScreen");
+  const acesso = document.getElementById("accessScreen");
+  if (cadastro) cadastro.style.display = "none";
+  if (acesso) acesso.style.display = "none";
   document.getElementById("app").style.display = "none";
 }
 
@@ -8413,6 +8417,8 @@ function podeEditarModulo(modulo) {
 
 function mostrarAcessoAguardando(mensagem) {
   document.getElementById("loginScreen").style.display = "none";
+  const cadastro = document.getElementById("cadastroScreen");
+  if (cadastro) cadastro.style.display = "none";
   document.getElementById("app").style.display = "none";
   const screen = document.getElementById("accessScreen");
   screen.style.display = "flex";
@@ -8745,5 +8751,142 @@ async function salvarUsuarioAcesso() {
 
   alert("Acesso atualizado.");
   await carregarUsuariosAcesso();
+}
+
+/* ==========================================================
+   CADASTRO DE USUÁRIO NA TELA DE LOGIN
+   ========================================================== */
+
+function limparMensagensCadastro() {
+  const erro = document.getElementById("cadastroErro");
+  const sucesso = document.getElementById("cadastroSucesso");
+
+  if (erro) {
+    erro.style.display = "none";
+    erro.innerText = "";
+  }
+
+  if (sucesso) {
+    sucesso.style.display = "none";
+    sucesso.innerText = "";
+  }
+}
+
+function mostrarCadastro() {
+  limparMensagensCadastro();
+
+  const emailLogin = document.getElementById("loginEmail")?.value.trim() || "";
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("accessScreen").style.display = "none";
+  document.getElementById("app").style.display = "none";
+  document.getElementById("cadastroScreen").style.display = "flex";
+
+  if (emailLogin && !document.getElementById("cadastroEmail").value) {
+    document.getElementById("cadastroEmail").value = emailLogin;
+  }
+
+  setTimeout(() => document.getElementById("cadastroNome")?.focus(), 80);
+}
+
+function voltarParaLogin() {
+  const email = document.getElementById("cadastroEmail")?.value.trim() || "";
+  document.getElementById("cadastroScreen").style.display = "none";
+  document.getElementById("accessScreen").style.display = "none";
+  document.getElementById("app").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+
+  if (email) document.getElementById("loginEmail").value = email;
+  document.getElementById("loginSenha").value = "";
+  document.getElementById("loginErro").style.display = "none";
+  setTimeout(() => document.getElementById("loginSenha")?.focus(), 80);
+}
+
+function mostrarErroCadastro(mensagem) {
+  const erro = document.getElementById("cadastroErro");
+  const sucesso = document.getElementById("cadastroSucesso");
+  sucesso.style.display = "none";
+  erro.innerText = mensagem;
+  erro.style.display = "block";
+}
+
+async function cadastrarNovoUsuario() {
+  limparMensagensCadastro();
+
+  const nome = document.getElementById("cadastroNome").value.trim();
+  const email = document.getElementById("cadastroEmail").value.trim().toLowerCase();
+  const senha = document.getElementById("cadastroSenha").value;
+  const confirmar = document.getElementById("cadastroSenhaConfirmar").value;
+  const btn = document.getElementById("cadastroEnviarBtn");
+
+  if (nome.length < 2) {
+    mostrarErroCadastro("Informe o nome da pessoa.");
+    return;
+  }
+
+  if (!email || !email.includes("@")) {
+    mostrarErroCadastro("Informe um e-mail válido.");
+    return;
+  }
+
+  if (senha.length < 8) {
+    mostrarErroCadastro("A senha precisa ter pelo menos 8 caracteres.");
+    return;
+  }
+
+  if (senha !== confirmar) {
+    mostrarErroCadastro("As senhas não são iguais.");
+    return;
+  }
+
+  btn.disabled = true;
+  const textoAnterior = btn.innerText;
+  btn.innerText = "Enviando cadastro...";
+
+  try {
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password:senha,
+      options:{
+        data:{
+          name:nome,
+          full_name:nome
+        }
+      }
+    });
+
+    if (error) throw error;
+
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      mostrarErroCadastro("Este e-mail já possui cadastro. Use o botão Voltar para entrar.");
+      return;
+    }
+
+    document.getElementById("cadastroSenha").value = "";
+    document.getElementById("cadastroSenhaConfirmar").value = "";
+
+    if (data.session) {
+      mostrarAcessoAguardando(
+        `Cadastro de ${email} criado. Agora o administrador precisa ativar o usuário e definir as permissões.`
+      );
+      return;
+    }
+
+    const sucesso = document.getElementById("cadastroSucesso");
+    sucesso.innerText =
+      "Cadastro enviado. Confira seu e-mail caso seja solicitada uma confirmação. Depois, aguarde o administrador liberar o acesso.";
+    sucesso.style.display = "block";
+
+    document.getElementById("loginEmail").value = email;
+  } catch(e) {
+    const mensagem = String(e?.message || e || "Não foi possível criar o cadastro.");
+    mostrarErroCadastro(
+      mensagem.toLowerCase().includes("signups not allowed")
+        ? "O cadastro de novos usuários está desativado no Supabase. O administrador precisa habilitar o cadastro por e-mail."
+        : mensagem
+    );
+  } finally {
+    btn.disabled = false;
+    btn.innerText = textoAnterior;
+  }
 }
 

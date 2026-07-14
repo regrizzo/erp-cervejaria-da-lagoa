@@ -722,3 +722,38 @@ h3 { margin:18px 0 10px; }
   .userTopButton { max-width:92px; font-size:11px; }
   .permissionRow { grid-template-columns:minmax(0,1fr) 62px 62px; }
 }
+
+
+/* Cadastro de usuário na tela de entrada */
+.loginPrimary,
+.loginSecondary {
+  width:100%;
+  min-height:48px;
+  margin-top:12px;
+}
+.loginSecondary {
+  margin-top:8px;
+  background:#ffffff;
+  color:var(--brand);
+  border:1px solid #cbd5e1;
+}
+.loginSecondary:hover {
+  background:#f8fafc;
+}
+.cadastroSucesso {
+  display:block;
+  margin-top:10px;
+  padding:11px;
+  border-radius:12px;
+  background:#dcfce7;
+  color:#166534;
+  font-size:13px;
+  font-weight:800;
+  line-height:1.4;
+}
+.loginCard small {
+  display:block;
+  margin-top:12px;
+  color:var(--muted);
+  line-height:1.35;
+}

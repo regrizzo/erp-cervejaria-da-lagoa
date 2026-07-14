@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>ERP Cervejaria</title>
 
-  <link rel="manifest" href="./manifest.json?v=controle-acesso-usuarios-20260714" />
+  <link rel="manifest" href="./manifest.json?v=cadastro-na-tela-login-20260714" />
   <link rel="icon" type="image/png" href="https://regrizzo.github.io/erp-cervejaria-icons/icon-192.png" />
   <link rel="apple-touch-icon" href="https://regrizzo.github.io/erp-cervejaria-icons/apple-touch-icon-180.png" />
   <meta name="theme-color" content="#0c2949" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=controle-acesso-usuarios-20260714" />
+  <link rel="stylesheet" href="./styles.css?v=cadastro-na-tela-login-20260714" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -29,9 +29,37 @@
       <label>Senha</label>
       <input id="loginSenha" type="password" placeholder="senha">
 
-      <button onclick="login()">Entrar</button>
+      <button class="loginPrimary" onclick="login()">Entrar</button>
+      <button class="loginSecondary" onclick="mostrarCadastro()">Criar cadastro</button>
       <div id="loginErro" class="erro"></div>
-      <small>Use o usuário cadastrado para acessar o sistema.</small>
+      <small>Cadastros novos ficam aguardando a liberação do administrador.</small>
+    </div>
+  </div>
+
+  <div id="cadastroScreen" class="loginScreen" style="display:none;">
+    <div class="loginCard">
+      <img class="logo" src="https://regrizzo.github.io/erp-cervejaria-icons/icon-192.png" alt="ERP Cervejaria">
+      <h1>Criar cadastro</h1>
+      <p>Preencha seus dados. O administrador definirá o seu acesso antes da primeira utilização.</p>
+
+      <label>Nome</label>
+      <input id="cadastroNome" autocomplete="name" placeholder="Seu nome">
+
+      <label>E-mail</label>
+      <input id="cadastroEmail" type="email" autocomplete="email" placeholder="seu@email.com">
+
+      <label>Senha</label>
+      <input id="cadastroSenha" type="password" autocomplete="new-password" placeholder="Mínimo de 8 caracteres">
+
+      <label>Confirmar senha</label>
+      <input id="cadastroSenhaConfirmar" type="password" autocomplete="new-password" placeholder="Digite a senha novamente">
+
+      <button id="cadastroEnviarBtn" class="loginPrimary" onclick="cadastrarNovoUsuario()">Enviar cadastro</button>
+      <button class="loginSecondary" onclick="voltarParaLogin()">Voltar para entrar</button>
+
+      <div id="cadastroErro" class="erro"></div>
+      <div id="cadastroSucesso" class="cadastroSucesso" style="display:none;"></div>
+      <small>Após o cadastro, aguarde o administrador ativar o usuário e escolher as permissões.</small>
     </div>
   </div>
 
@@ -1149,6 +1177,6 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=controle-acesso-usuarios-20260714"></script>
+  <script src="./app.js?v=cadastro-na-tela-login-20260714"></script>
 </body>
 </html>
