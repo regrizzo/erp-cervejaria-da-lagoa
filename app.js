@@ -150,7 +150,6 @@ async function carregarConfiguracoesBase(force=false) {
     (data || []).forEach(r => state.configuracoes[r.chave] = r.valor);
   }
 
-  if (!state.configuracoes.valor_litro_phenomena) state.configuracoes.valor_litro_phenomena = "3";
   if (!state.configuracoes.dias_alerta_barril_cliente) state.configuracoes.dias_alerta_barril_cliente = "21";
   if (!state.configuracoes.dias_alerta_lote_fermentando) state.configuracoes.dias_alerta_lote_fermentando = "10";
   if (!state.configuracoes.dias_alerta_validade_insumos) state.configuracoes.dias_alerta_validade_insumos = "30";
@@ -1494,7 +1493,6 @@ function prepararFormRetiradaPhenomena() {
 async function carregarPhenomena(force=false) {
   if (state.loaded.phenomena && !force) return;
   await carregarBaseCadastros();
-  await carregarConfiguracoesBase(true);
 
   const [estoque, entradas, retiradas, debitos, pagamentos] = await Promise.all([
     sb.from("estoque_cerveja").select("*").eq("origem","PHENOMENA").order("cerveja_nome"),
@@ -1596,10 +1594,10 @@ function atualizarResumoRetiradaPhenomena() {
   const q30 = Number(document.getElementById("phenRetQ30")?.value || 0);
   const q50 = Number(document.getElementById("phenRetQ50")?.value || 0);
   const litros = litrosBarris(q10,q20,q30,q50);
-  const valorLitro = getConfigNumero("valor_litro_phenomena", 3);
+  const valorLitro = 3;
   const valor = litros * valorLitro;
   const el = document.getElementById("phenRetResumo");
-  if (el) el.innerText = `Total: ${fmt(litros)} L • Débito: ${fmtMoeda(valor)} • Regra: ${fmtMoeda(valorLitro)}/L`;
+  if (el) el.innerText = `Total: ${fmt(litros)} L • Débito: ${fmtMoeda(valor)} • Regra fixa: R$ 3,00/L`;
 }
 
 async function prepararFormPagamentoPhenomena() {
@@ -1755,7 +1753,7 @@ async function salvarRetiradaPhenomena() {
   const nq30 = Number(atual.q30 || 0) - q30;
   const nq50 = Number(atual.q50 || 0) - q50;
   const litros = litrosBarris(q10,q20,q30,q50);
-  const valorLitro = getConfigNumero("valor_litro_phenomena", 3);
+  const valorLitro = 3;
   const valorTotal = litros * valorLitro;
   const cerveja = state.cervejas.find(c => c.nome === cerveja_nome);
 
@@ -1892,7 +1890,6 @@ async function carregarConfiguracoes(force=false) {
   if (state.loaded.configuracoes && !force) return;
   await carregarConfiguracoesBase(true);
 
-  document.getElementById("configValorPhenomena").value = getConfigNumero("valor_litro_phenomena", 3);
   document.getElementById("configDiasBarrilCliente").value = getConfigNumero("dias_alerta_barril_cliente", 21);
   document.getElementById("configDiasLoteFermentando").value = getConfigNumero("dias_alerta_lote_fermentando", 10);
   document.getElementById("configDiasValidadeInsumos").value = getConfigNumero("dias_alerta_validade_insumos", 30);
@@ -1904,7 +1901,6 @@ async function salvarConfiguracoes() {
   mostrarErro("configErro", "");
 
   const payload = [
-    { chave:"valor_litro_phenomena", valor:String(Number(document.getElementById("configValorPhenomena").value || 3)), atualizado_em:new Date().toISOString() },
     { chave:"dias_alerta_barril_cliente", valor:String(Number(document.getElementById("configDiasBarrilCliente").value || 21)), atualizado_em:new Date().toISOString() },
     { chave:"dias_alerta_lote_fermentando", valor:String(Number(document.getElementById("configDiasLoteFermentando").value || 10)), atualizado_em:new Date().toISOString() },
     { chave:"dias_alerta_validade_insumos", valor:String(Number(document.getElementById("configDiasValidadeInsumos").value || 30)), atualizado_em:new Date().toISOString() }
@@ -2068,11 +2064,12 @@ async function carregarPainelDia(force=false) {
   const diasBarrilCliente = getConfigNumero("dias_alerta_barril_cliente", 21);
   const diasLoteFermentando = getConfigNumero("dias_alerta_lote_fermentando", 10);
 
-  const [ec, ei, saidasPainel, retornosPainel] = await Promise.all([
+  const [ec, ei, saidasPainel, retornosPainel, entradasValidade] = await Promise.all([
     sb.from("estoque_cerveja").select("*"),
     sb.from("estoque_insumos").select("*"),
     sb.from("saidas").select("*").order("data_saida", { ascending:true }),
-    sb.from("retornos").select("*")
+    sb.from("retornos").select("*"),
+    sb.from("entradas_insumos").select("*").not("validade","is",null).order("validade", { ascending:true })
   ]);
 
   const estoquePorCerveja = new Map();
@@ -2134,6 +2131,27 @@ async function carregarPainelDia(force=false) {
     linhas: alertasBarris.map(c => `${c.cliente}: ${c.abertoAproximado} barril(is) em aberto aprox. • saída mais antiga ${dataBR(c.dataMaisAntiga)}`)
   });
 
+  const diasValidade = getConfigNumero("dias_alerta_validade_insumos", 30);
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+  const limiteValidade = new Date(hoje);
+  limiteValidade.setDate(limiteValidade.getDate() + diasValidade);
+
+  const validadesProximas = (entradasValidade.data || []).filter(e => {
+    const d = new Date(String(e.validade) + "T00:00:00");
+    return d <= limiteValidade;
+  }).slice(0, 20);
+
+  itens.push({
+    titulo:`📅 Insumos vencendo em até ${diasValidade} dias`,
+    linhas: validadesProximas.map(e => {
+      const d = new Date(String(e.validade) + "T00:00:00");
+      const dias = Math.ceil((d - hoje) / 86400000);
+      const status = dias < 0 ? `vencido há ${Math.abs(dias)} dia(s)` : `vence em ${dias} dia(s)`;
+      return `${e.tipo} — ${e.nome}: ${fmt(e.quantidade,2)} ${e.unidade} • validade ${dataBR(e.validade)} • ${status}`;
+    })
+  });
+
   const box = document.getElementById("painelDiaConteudo");
   box.innerHTML = "";
   itens.forEach(sec => {
@@ -2164,17 +2182,23 @@ async function carregarRelatorioMensal(force=false) {
   dFim.setMonth(dFim.getMonth() + 1);
   const fim = dFim.toISOString().slice(0,10);
 
-  const [producoes, envases, saidas, insumos] = await Promise.all([
+  const [producoes, envases, saidas, insumos, retornos, debitosPhen, pagamentosPhen] = await Promise.all([
     sb.from("producoes").select("*").gte("data_producao", inicio).lt("data_producao", fim),
     sb.from("envases").select("*").gte("data_envase", inicio).lt("data_envase", fim),
     sb.from("saidas").select("*").gte("data_saida", inicio).lt("data_saida", fim),
-    sb.from("producao_insumos").select("*").gte("criado_em", inicio).lt("criado_em", fim)
+    sb.from("producao_insumos").select("*").gte("criado_em", inicio).lt("criado_em", fim),
+    sb.from("retornos").select("*").gte("data_retorno", inicio).lt("data_retorno", fim),
+    sb.from("phenomena_debitos").select("*").gte("criado_em", inicio).lt("criado_em", fim),
+    sb.from("phenomena_pagamentos").select("*").gte("criado_em", inicio).lt("criado_em", fim)
   ]);
 
   const litrosProduzidos = (producoes.data || []).reduce((s,r)=>s+Number(r.litros_produzidos||0),0);
   const litrosEnvasados = (envases.data || []).reduce((s,r)=>s+Number(r.litros_total||0),0);
   const perdas = (envases.data || []).reduce((s,r)=>s+Number(r.perda||0),0);
   const litrosSaidas = (saidas.data || []).reduce((s,r)=>s+Number(r.litros||0),0);
+  const barrisRetornados = (retornos.data || []).reduce((s,r)=>s+somaBarris(r.q10,r.q20,r.q30,r.q50),0);
+  const valorDebitosPhen = (debitosPhen.data || []).reduce((s,r)=>s+Number(r.valor_total||0),0);
+  const valorPagamentosPhen = (pagamentosPhen.data || []).reduce((s,r)=>s+Number(r.valor||0),0);
 
   const porCerveja = {};
   (saidas.data || []).forEach(s => porCerveja[s.cerveja_nome] = (porCerveja[s.cerveja_nome] || 0) + Number(s.litros || 0));
@@ -2192,6 +2216,9 @@ async function carregarRelatorioMensal(force=false) {
       <div class="card"><span>Envasado</span><strong>${fmt(litrosEnvasados)} L</strong></div>
       <div class="card"><span>Perdas</span><strong>${fmt(perdas)} L</strong></div>
       <div class="card"><span>Saídas</span><strong>${fmt(litrosSaidas)} L</strong></div>
+      <div class="card"><span>Barris retornados</span><strong>${fmt(barrisRetornados)}</strong></div>
+      <div class="card"><span>Débito Phenomena</span><strong>${fmtMoeda(valorDebitosPhen)}</strong></div>
+      <div class="card"><span>Pago Phenomena</span><strong>${fmtMoeda(valorPagamentosPhen)}</strong></div>
     </div>
     <div class="item blocoVertical"><strong>Saídas por cerveja</strong><div class="sub">${Object.entries(porCerveja).length ? Object.entries(porCerveja).sort((a,b)=>a[0].localeCompare(b[0],"pt-BR")).map(([k,v])=>`${escapeHtml(k)}: ${fmt(v)} L`).join("<br>") : "Sem saídas."}</div></div>
     <div class="item blocoVertical"><strong>Insumos consumidos</strong><div class="sub">${Object.entries(consumo).length ? Object.entries(consumo).sort((a,b)=>a[0].localeCompare(b[0],"pt-BR")).map(([k,v])=>`${escapeHtml(k)}: ${fmt(v,2)}`).join("<br>") : "Sem consumo."}</div></div>

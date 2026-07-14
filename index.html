@@ -39,7 +39,7 @@
     <header class="topbar">
       <div>
         <div class="appTitle">ERP Cervejaria</div>
-        <div class="appSub">Supabase • V8 retornos e config</div>
+        <div class="appSub">Supabase • V9 alertas</div>
       </div>
       <button class="btnGhost" onclick="logout()">Sair</button>
     </header>
@@ -455,7 +455,7 @@
 
         <div id="formRetiradaPhenomena" class="formBox" style="display:none;">
           <h3>Retirada do estoque Phenomena</h3>
-          <p class="muted">Esta retirada baixa a origem PHENOMENA e gera débito financeiro a R$ 3,00 por litro.</p>
+          <p class="muted">Esta retirada baixa a origem PHENOMENA e gera débito financeiro fixo a R$ 3,00 por litro.</p>
 
           <label>Cerveja</label>
           <select id="phenRetiradaCerveja"></select>
@@ -627,10 +627,7 @@
         </div>
 
         <div class="formBox" style="display:block;">
-          <h3>Regras do ERP</h3>
-
-          <label>Valor Phenomena por litro (R$)</label>
-          <input id="configValorPhenomena" type="number" min="0" step="0.01">
+          <h3>Alertas do ERP</h3>
 
           <label>Dias para alerta de barril em cliente</label>
           <input id="configDiasBarrilCliente" type="number" min="1" step="1">
