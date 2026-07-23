@@ -1,5 +1,5 @@
 
-const APP_BUILD = "saidas-rufus-interno-20260723";
+const APP_BUILD = "phenomena-somente-saldo-20260723";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -4458,8 +4458,11 @@ async function carregarPhenomena(force=false) {
   if (document.getElementById("phenTotalRetirado")) document.getElementById("phenTotalRetirado").innerText = fmt(totalRetiradoPeriodo) + " L";
 
   const ebox = document.getElementById("estoquePhenomena");
-  const rows = estoque.data || [];
-  const incompletosRows = incompletos.data || [];
+  const rows = (estoque.data || []).filter(r => (
+    Number(r.litros || 0) > 0
+    || somaBarris(r.q10,r.q20,r.q30,r.q50) > 0
+  ));
+  const incompletosRows = (incompletos.data || []).filter(r => Number(r.litros_atuais || 0) > 0);
   ebox.innerHTML = (rows.length || incompletosRows.length)
     ? ""
     : '<div class="item"><span class="sub">Nenhum estoque Phenomena.</span></div>';
@@ -4469,9 +4472,9 @@ async function carregarPhenomena(force=false) {
       <div class="item">
         <div>
           <strong>${escapeHtml(r.cerveja_nome)}</strong>
-          <div class="sub">10L=${r.q10 || 0} • 20L=${r.q20 || 0} • 30L=${r.q30 || 0} • 50L=${r.q50 || 0}</div>
+          <div class="sub">${detalharBarrisComSaldo(r.q10,r.q20,r.q30,r.q50)}</div>
         </div>
-        <span class="badge ${Number(r.litros || 0) <= 0 ? "zero" : ""}">${fmt(r.litros)} L</span>
+        <span class="badge">${fmt(r.litros)} L</span>
       </div>
     `);
   });
