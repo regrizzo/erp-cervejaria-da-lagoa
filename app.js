@@ -1,5 +1,5 @@
 
-const APP_BUILD = "barril-incompleto-20260723";
+const APP_BUILD = "estoque-somente-saldos-20260723";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -205,6 +205,18 @@ function litrosBarris(q10,q20,q30,q50) {
 
 function somaBarris(q10,q20,q30,q50) {
   return (Number(q10)||0) + (Number(q20)||0) + (Number(q30)||0) + (Number(q50)||0);
+}
+
+function detalharBarrisComSaldo(q10,q20,q30,q50) {
+  return [
+    [10, Number(q10 || 0)],
+    [20, Number(q20 || 0)],
+    [30, Number(q30 || 0)],
+    [50, Number(q50 || 0)]
+  ]
+    .filter(([,quantidade]) => quantidade > 0)
+    .map(([tamanho,quantidade]) => `${tamanho}L=${quantidade}`)
+    .join(" • ");
 }
 
 
@@ -1166,8 +1178,12 @@ function renderResumoEstoqueOrigem(rows, barrisIncompletos=[]) {
     };
   });
 
-  box.innerHTML = "";
-  dados.forEach(d => {
+  const comSaldo = dados.filter(d => d.litros > 0 || d.barris > 0);
+  box.innerHTML = comSaldo.length
+    ? ""
+    : '<div class="item"><span class="sub">Nenhum estoque disponível.</span></div>';
+
+  comSaldo.forEach(d => {
     box.insertAdjacentHTML("beforeend", `
       <div class="card">
         <span>${escapeHtml(d.origem)}</span>
@@ -1212,14 +1228,19 @@ function renderEstoqueCervejas(rows, barrisIncompletos=[]) {
     atual.q20 += Number(r.q20 || 0);
     atual.q30 += Number(r.q30 || 0);
     atual.q50 += Number(r.q50 || 0);
-    atual.origens.push({
-      origem:r.origem,
-      litros:Number(r.litros || 0),
-      q10:Number(r.q10 || 0),
-      q20:Number(r.q20 || 0),
-      q30:Number(r.q30 || 0),
-      q50:Number(r.q50 || 0)
-    });
+    if (
+      Number(r.litros || 0) > 0
+      || somaBarris(r.q10,r.q20,r.q30,r.q50) > 0
+    ) {
+      atual.origens.push({
+        origem:r.origem,
+        litros:Number(r.litros || 0),
+        q10:Number(r.q10 || 0),
+        q20:Number(r.q20 || 0),
+        q30:Number(r.q30 || 0),
+        q50:Number(r.q50 || 0)
+      });
+    }
     map.set(r.cerveja_nome, atual);
   });
 
@@ -1254,16 +1275,25 @@ function renderEstoqueCervejas(rows, barrisIncompletos=[]) {
               r.origens.length
                 ? r.origens.map(o => `
                     ${escapeHtml(o.origem)}: ${fmt(o.litros)} L •
-                    10L=${o.q10} • 20L=${o.q20} • 30L=${o.q30} • 50L=${o.q50}
+                    ${detalharBarrisComSaldo(o.q10,o.q20,o.q30,o.q50)}
                   `).join("<br>")
                 : "Sem estoque"
             }
           </div>
-          <div class="sub">
-            Total de barris: ${somaBarris(r.q10,r.q20,r.q30,r.q50) + r.incompletos.length} •
-            completos por tamanho:
-            10L=${r.q10} • 20L=${r.q20} • 30L=${r.q30} • 50L=${r.q50}
-          </div>
+          ${
+            somaBarris(r.q10,r.q20,r.q30,r.q50) + r.incompletos.length > 0
+              ? `
+                <div class="sub">
+                  Total de barris: ${somaBarris(r.q10,r.q20,r.q30,r.q50) + r.incompletos.length}
+                  ${
+                    somaBarris(r.q10,r.q20,r.q30,r.q50) > 0
+                      ? ` • completos: ${detalharBarrisComSaldo(r.q10,r.q20,r.q30,r.q50)}`
+                      : ""
+                  }
+                </div>
+              `
+              : ""
+          }
           ${
             r.incompletos.map(b => `
               <div class="estoqueIncompleto">
