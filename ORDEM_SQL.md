@@ -44,6 +44,19 @@ O SQL 08 também corrige de forma restrita o lançamento da ANARCHY de
 24/07/2026, de 30 L / R$ 90,00 para 28 L / R$ 84,00. A correção só é aplicada
 quando o banco contém exatamente um débito e um barril incompleto compatíveis.
 
+### Correção do vínculo Anarchy / Brazza
+
+Se o SQL 08 já foi executado no banco da Cervejaria da Lagoa, execute depois:
+
+1. `09_CORRIGIR_VINCULO_ANARCHY_BRAZZA.sql`.
+
+O SQL 09 realoca o barril incompleto de 28 L para o primeiro lançamento da
+ANARCHY, composto por Renan 30 L, Brazza 28 L e Layback 30 L. O primeiro
+lançamento passa a 88 L / R$ 264,00 e o lançamento seguinte retorna a
+30 L / R$ 90,00. O envase histórico passa de 19 barris completos para
+18 completos + 1 incompleto de 28 L, mantendo inalterado o estoque atual de
+15 barris completos.
+
 ## Arquivos históricos
 
 Estes arquivos estão mantidos como referência e não devem ser executados depois

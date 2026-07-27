@@ -74,6 +74,12 @@ Para uma instalação nova:
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
 em um banco já configurado.
 
+No banco da Cervejaria da Lagoa que já recebeu o SQL 08, execute
+`09_CORRIGIR_VINCULO_ANARCHY_BRAZZA.sql` para vincular o barril incompleto de
+28 L ao primeiro lançamento da ANARCHY, destinado ao Brazza. A correção
+estrutura o envase antigo como 18 barris completos + 1 incompleto de 28 L,
+mantendo inalterado o estoque atual de 15 barris completos.
+
 ### Migração dos dados antigos
 
 `01_ZERAR_ERP_ANTES_DA_MIGRACAO.sql` apaga os dados operacionais. Ele só pode
