@@ -1,0 +1,13 @@
+# Cópias e pacotes históricos
+Nova pasta/
+01_BANCO_COMPLETO.zip
+
+# Dados reais de migração — manter fora de repositórios públicos
+MIGRACAO_GOOGLE_SHEETS_PARA_ERP.json
+01_ZERAR_ERP_ANTES_DA_MIGRACAO.sql
+02_MIGRAR_GOOGLE_SHEETS_PARA_ERP.sql
+RELATORIO_MIGRACAO.xlsx
+
+# Arquivos locais do sistema operacional
+Thumbs.db
+.DS_Store
