@@ -9,10 +9,12 @@ Execute apenas:
 
 1. `01_BANCO_COMPLETO.sql`
 2. `06_BARRIL_INCOMPLETO_DISPONIVEL.sql`
+3. `07_PAGAMENTO_PHENOMENA_FIFO.sql`
 
 O primeiro arquivo consolida a estrutura original, envase detalhado, retornos,
-Phenomena, correções, restauração e controle de acesso. O segundo é uma
-atualização posterior que cria o controle de barris incompletos disponíveis.
+Phenomena, correções, restauração e controle de acesso. O segundo cria o
+controle de barris incompletos disponíveis. O terceiro registra pagamentos da
+Phenomena por valor e os distribui do débito mais antigo para o mais novo.
 
 ## Banco existente
 
@@ -23,6 +25,12 @@ incompleto, execute somente:
 1. faça um backup no ERP;
 2. execute `06_BARRIL_INCOMPLETO_DISPONIVEL.sql`;
 3. publique os arquivos atuais do site.
+
+Para ativar o pagamento automático da Phenomena em um banco já atualizado:
+
+1. faça um backup no ERP;
+2. execute `07_PAGAMENTO_PHENOMENA_FIFO.sql`;
+3. publique os arquivos correspondentes do site.
 
 ## Arquivos históricos
 

@@ -1,5 +1,5 @@
 
-const APP_BUILD = "modularizado-20260726";
+const APP_BUILD = "phenomena-pagamento-fifo-20260727";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -1666,92 +1666,210 @@ function atualizarResumoRetiradaPhenomena() {
 }
 
 
-function atualizarResumoPagamentoPhenomena() {
-  const sel = document.getElementById("phenPagDebito");
-  const op = sel ? sel.options[sel.selectedIndex] : null;
-  const el = document.getElementById("phenPagResumo");
+function simularPagamentoPhenomenaFifo(valor) {
+  const valorCentavos = Math.max(0, Math.round(Number(valor || 0) * 100));
+  let restanteCentavos = valorCentavos;
 
-  if (!op || !op.value) {
-    if (el) el.innerText = "Selecione um débito.";
+  const debitos = (state.debitosPhenomena || [])
+    .map(d => ({
+      ...d,
+      abertoCentavos:Math.max(
+        0,
+        Math.round((Number(d.valor_total || 0) - Number(d.valor_pago || 0)) * 100)
+      )
+    }))
+    .filter(d => d.abertoCentavos > 0)
+    .sort((a,b) => {
+      const porData = dataParaOrdenacao(a.criado_em) - dataParaOrdenacao(b.criado_em);
+      return porData || String(a.id || "").localeCompare(String(b.id || ""));
+    });
+
+  const saldoAbertoCentavos = debitos.reduce((s,d) => s + d.abertoCentavos, 0);
+  const aplicacoes = [];
+
+  for (const debito of debitos) {
+    if (restanteCentavos <= 0) break;
+
+    const aplicadoCentavos = Math.min(restanteCentavos, debito.abertoCentavos);
+    const saldoDepoisCentavos = debito.abertoCentavos - aplicadoCentavos;
+
+    aplicacoes.push({
+      debito,
+      aplicado:aplicadoCentavos / 100,
+      abertoAntes:debito.abertoCentavos / 100,
+      saldoDepois:saldoDepoisCentavos / 100,
+      quitado:saldoDepoisCentavos === 0
+    });
+
+    restanteCentavos -= aplicadoCentavos;
+  }
+
+  return {
+    valor:valorCentavos / 100,
+    saldoAberto:saldoAbertoCentavos / 100,
+    saldoDepois:Math.max(0, saldoAbertoCentavos - valorCentavos) / 100,
+    excedente:Math.max(0, valorCentavos - saldoAbertoCentavos) / 100,
+    aplicacoes,
+    quitados:aplicacoes.filter(a => a.quitado).length,
+    parciais:aplicacoes.filter(a => !a.quitado).length
+  };
+}
+
+function atualizarResumoPagamentoPhenomena() {
+  const el = document.getElementById("phenPagResumo");
+  const btn = document.getElementById("phenPagSalvarBtn");
+  const valor = Number(document.getElementById("phenPagValor")?.value || 0);
+  const previa = simularPagamentoPhenomenaFifo(valor);
+
+  if (btn) btn.disabled = valor <= 0 || previa.excedente > 0 || previa.saldoAberto <= 0;
+  if (!el) return;
+
+  if (previa.saldoAberto <= 0) {
+    el.innerHTML = '<span class="pagamentoFifoAviso">Não há débitos abertos para baixar.</span>';
     return;
   }
 
-  if (el) {
-    el.innerText = `Aberto: ${fmtMoeda(op.dataset.aberto)} • Total: ${fmtMoeda(op.dataset.total)} • Já pago: ${fmtMoeda(op.dataset.pago)}`;
+  if (valor <= 0) {
+    el.innerHTML = `
+      <div class="pagamentoFifoTitulo">
+        <span>Saldo aberto atual</span>
+        <strong>${fmtMoeda(previa.saldoAberto)}</strong>
+      </div>
+      <span class="muted">Informe o valor recebido para visualizar a distribuição.</span>
+    `;
+    return;
   }
 
-  const valorInput = document.getElementById("phenPagValor");
-  if (valorInput && !valorInput.value) valorInput.value = Number(op.dataset.aberto || 0).toFixed(2);
+  if (previa.excedente > 0) {
+    el.innerHTML = `
+      <div class="pagamentoFifoTitulo">
+        <span>Saldo aberto atual</span>
+        <strong>${fmtMoeda(previa.saldoAberto)}</strong>
+      </div>
+      <span class="pagamentoFifoAviso">
+        O pagamento excede o saldo em ${fmtMoeda(previa.excedente)}. Informe no máximo ${fmtMoeda(previa.saldoAberto)}.
+      </span>
+    `;
+    return;
+  }
+
+  const itens = previa.aplicacoes.slice(0,6).map(a => `
+    <div class="pagamentoFifoItem">
+      <span>
+        ${escapeHtml(a.debito.cerveja_nome || "Débito")}
+        <span class="muted"> • ${dataHoraBR(a.debito.criado_em)}</span>
+      </span>
+      <strong>
+        ${fmtMoeda(a.aplicado)}
+        ${a.quitado ? " • quita" : ` • restará ${fmtMoeda(a.saldoDepois)}`}
+      </strong>
+    </div>
+  `).join("");
+
+  const restantes = previa.aplicacoes.length - 6;
+  el.innerHTML = `
+    <div class="pagamentoFifoTitulo">
+      <span>Distribuição do pagamento</span>
+      <strong>${fmtMoeda(previa.valor)}</strong>
+    </div>
+    <div>
+      ${previa.quitados} débito(s) quitado(s)
+      ${previa.parciais ? ` • ${previa.parciais} ficará parcial` : ""}
+      • saldo geral depois ${fmtMoeda(previa.saldoDepois)}
+    </div>
+    <div class="pagamentoFifoLista">
+      ${itens}
+      ${restantes > 0 ? `<span class="muted">E mais ${restantes} débito(s) incluído(s) na distribuição.</span>` : ""}
+    </div>
+  `;
 }
 
 async function salvarPagamentoPhenomena() {
   mostrarErro("phenPagErro", "");
-  const debitoId = document.getElementById("phenPagDebito").value;
-  const valor = Number(document.getElementById("phenPagValor").value || 0);
+
+  const valorInput = document.getElementById("phenPagValor");
+  const valor = Number(valorInput?.value || 0);
   const responsavel = document.getElementById("phenPagResp").value.trim();
   const observacao = document.getElementById("phenPagObs").value.trim();
+  const previa = simularPagamentoPhenomenaFifo(valor);
 
-  if (!debitoId || valor <= 0) {
-    mostrarErro("phenPagErro", "Selecione o débito e informe o valor pago.");
+  if (valor <= 0) {
+    mostrarErro("phenPagErro", "Informe o valor recebido.");
     return;
   }
 
-  const { data: debito, error: buscaErro } = await sb.from("phenomena_debitos")
-    .select("*")
-    .eq("id", debitoId)
-    .single();
-
-  if (buscaErro || !debito) {
-    mostrarErro("phenPagErro", buscaErro ? buscaErro.message : "Débito não encontrado.");
+  if (!previa.aplicacoes.length) {
+    mostrarErro("phenPagErro", "Não há débitos abertos para este pagamento.");
     return;
   }
 
-  const aberto = Number(debito.valor_total || 0) - Number(debito.valor_pago || 0);
-  if (valor > aberto) {
-    mostrarErro("phenPagErro", `Valor maior que o saldo aberto. Aberto: ${fmtMoeda(aberto)}.`);
+  if (previa.excedente > 0) {
+    mostrarErro(
+      "phenPagErro",
+      `O valor excede o saldo aberto em ${fmtMoeda(previa.excedente)}. Informe no máximo ${fmtMoeda(previa.saldoAberto)}.`
+    );
     return;
   }
 
-  const novoPago = Number(debito.valor_pago || 0) + valor;
-  const novoStatus = novoPago >= Number(debito.valor_total || 0) ? "PAGO" : "PARCIAL";
+  const confirmacao = [
+    `CONFIRMAR PAGAMENTO PHENOMENA`,
+    ``,
+    `Valor recebido: ${fmtMoeda(valor)}`,
+    `Débitos quitados: ${previa.quitados}`,
+    `Débitos parciais: ${previa.parciais}`,
+    `Saldo geral depois: ${fmtMoeda(previa.saldoDepois)}`,
+    ``,
+    `O pagamento será aplicado do débito mais antigo para o mais novo.`
+  ].join("\n");
 
-  const { error: pagErro } = await sb.from("phenomena_pagamentos").insert({
-    debito_id: debitoId,
-    valor,
-    responsavel,
-    observacao
-  });
+  if (!confirm(confirmacao)) return;
 
-  if (pagErro) {
-    mostrarErro("phenPagErro", pagErro.message);
-    return;
+  const btn = document.getElementById("phenPagSalvarBtn");
+  const textoAnterior = btn?.innerText || "Registrar pagamento automático";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando pagamento...";
   }
 
-  const { error: updErro } = await sb.from("phenomena_debitos").update({
-    valor_pago: novoPago,
-    status: novoStatus,
-    pago_em: novoStatus === "PAGO" ? new Date().toISOString() : null
-  }).eq("id", debitoId);
+  try {
+    const { data, error } = await sb.rpc("erp_registrar_pagamento_phenomena_fifo", {
+      p_valor:valor,
+      p_responsavel:responsavel || null,
+      p_observacao:observacao || null
+    });
 
-  if (updErro) {
-    mostrarErro("phenPagErro", updErro.message);
-    return;
+    if (error) throw error;
+
+    ["phenPagValor","phenPagObs"].forEach(id => {
+      const campo = document.getElementById(id);
+      if (campo) campo.value = "";
+    });
+
+    invalidar("phenomena","auditoria");
+
+    const resultado = data || {};
+    alert(
+      `Pagamento de ${fmtMoeda(resultado.valor || valor)} registrado.\n` +
+      `${Number(resultado.debitos_quitados || previa.quitados)} débito(s) quitado(s)` +
+      `${Number(resultado.debitos_parciais || previa.parciais) ? ` e ${Number(resultado.debitos_parciais || previa.parciais)} parcial(is)` : ""}.`
+    );
+
+    await carregarPhenomena(true);
+    await prepararFormPagamentoPhenomena();
+  } catch(e) {
+    const mensagem = String(e?.message || e || "Não foi possível registrar o pagamento.");
+    mostrarErro(
+      "phenPagErro",
+      mensagem.includes("erp_registrar_pagamento_phenomena_fifo")
+        ? "A atualização SQL do pagamento automático ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+  } finally {
+    if (btn) {
+      btn.innerText = textoAnterior;
+      atualizarResumoPagamentoPhenomena();
+    }
   }
-
-  await sb.from("movimentacoes").insert({
-    tipo:"PAGAMENTO PHENOMENA",
-    categoria:"FINANCEIRO",
-    item_nome:debito.cerveja_nome,
-    quantidade:valor,
-    unidade:"R$",
-    observacao,
-    responsavel
-  });
-
-  ["phenPagValor","phenPagResp","phenPagObs"].forEach(id => document.getElementById(id).value = "");
-  invalidar("phenomena","auditoria");
-  alert("Pagamento Phenomena registrado.");
-  carregarPhenomena(true);
 }
 
 async function salvarRetiradaPhenomena() {
@@ -2837,18 +2955,21 @@ async function carregarPhenomena(force=false) {
   let qRetiradas = sb.from("movimentacoes").select("*").eq("tipo","RETIRADA PHENOMENA").order("criado_em", { ascending:false }).limit(500);
   let qDebitos = sb.from("phenomena_debitos").select("*").order("criado_em", { ascending:false }).limit(500);
   let qPagamentos = sb.from("phenomena_pagamentos").select("*").order("criado_em", { ascending:false }).limit(500);
+  let qRecebimentos = sb.from("phenomena_recebimentos").select("*").order("criado_em", { ascending:false }).limit(500);
 
   if (periodo.de) {
     qEntradas = qEntradas.gte("criado_em", periodo.de);
     qRetiradas = qRetiradas.gte("criado_em", periodo.de);
     qDebitos = qDebitos.gte("criado_em", periodo.de);
     qPagamentos = qPagamentos.gte("criado_em", periodo.de);
+    qRecebimentos = qRecebimentos.gte("criado_em", periodo.de);
   }
   if (periodo.ateIso) {
     qEntradas = qEntradas.lt("criado_em", periodo.ateIso);
     qRetiradas = qRetiradas.lt("criado_em", periodo.ateIso);
     qDebitos = qDebitos.lt("criado_em", periodo.ateIso);
     qPagamentos = qPagamentos.lt("criado_em", periodo.ateIso);
+    qRecebimentos = qRecebimentos.lt("criado_em", periodo.ateIso);
   }
 
   const [
@@ -2858,6 +2979,7 @@ async function carregarPhenomena(force=false) {
     retiradas,
     debitos,
     pagamentos,
+    recebimentos,
     debitosTodos
   ] = await Promise.all([
     sb.from("estoque_cerveja").select("*").eq("origem","PHENOMENA").order("cerveja_nome"),
@@ -2870,12 +2992,14 @@ async function carregarPhenomena(force=false) {
     qRetiradas,
     qDebitos,
     qPagamentos,
+    qRecebimentos,
     sb.from("phenomena_debitos").select("*").order("criado_em", { ascending:false }).limit(1000)
   ]);
 
   state.debitosPhenomena = debitosTodos.data || [];
   const debitosPeriodo = debitos.data || [];
   const pagamentosPeriodo = pagamentos.data || [];
+  const recebimentosPeriodo = recebimentos.data || [];
   const retiradasPeriodo = retiradas.data || [];
   const entradasPeriodo = entradas.data || [];
 
@@ -2947,16 +3071,25 @@ async function carregarPhenomena(force=false) {
   });
 
   const pbox = document.getElementById("pagamentosPhenomena");
-  pbox.innerHTML = pagamentosPeriodo.length ? "" : '<div class="item"><span class="sub">Nenhum pagamento no período.</span></div>';
-  pagamentosPeriodo.forEach(p => {
+  const pagamentosLegados = pagamentosPeriodo.filter(p => !p.recebimento_id);
+  const pagamentosExibicao = [
+    ...recebimentosPeriodo.map(r => ({ ...r, tipo_exibicao:"RECEBIMENTO" })),
+    ...pagamentosLegados.map(p => ({ ...p, tipo_exibicao:"LEGADO" }))
+  ].sort((a,b) => dataParaOrdenacao(b.criado_em) - dataParaOrdenacao(a.criado_em));
+
+  pbox.innerHTML = pagamentosExibicao.length ? "" : '<div class="item"><span class="sub">Nenhum pagamento no período.</span></div>';
+  pagamentosExibicao.forEach(p => {
+    const automatico = p.tipo_exibicao === "RECEBIMENTO";
+    const valorExibido = automatico ? p.valor : p.valor;
     pbox.insertAdjacentHTML("beforeend", `
       <div class="item searchable">
         <div>
-          <strong>Pagamento Phenomena</strong>
+          <strong>${automatico ? "Pagamento automático Phenomena" : "Pagamento Phenomena"}</strong>
           <div class="sub">${dataHoraBR(p.criado_em)} • ${escapeHtml(p.responsavel || "")}</div>
+          ${automatico ? `<div class="sub">${Number(p.debitos_quitados || 0)} débito(s) quitado(s) • ${Number(p.debitos_parciais || 0)} parcial(is)</div>` : ""}
           <div class="sub">${escapeHtml(p.observacao || "")}</div>
         </div>
-        <span class="badge">${fmtMoeda(p.valor)}</span>
+        <span class="badge">${fmtMoeda(valorExibido)}</span>
       </div>
     `);
   });
@@ -2998,6 +3131,7 @@ async function carregarPhenomena(force=false) {
     retiradas: retiradasPeriodo,
     debitos: debitosPeriodo,
     pagamentos: pagamentosPeriodo,
+    recebimentos: recebimentosPeriodo,
     saldoAberto,
     totalDebitadoPeriodo,
     totalPagoPeriodo,
@@ -3014,25 +3148,19 @@ async function prepararFormPagamentoPhenomena() {
     .order("criado_em", { ascending:true })
     .limit(1000);
 
-  const sel = document.getElementById("phenPagDebito");
-  sel.innerHTML = '<option value="">Selecionar débito...</option>';
-
   if (error) {
-    sel.innerHTML = '<option value="">Erro ao carregar débitos</option>';
+    mostrarErro("phenPagErro", error.message);
     return;
   }
 
-  state.debitosPhenomena = data || [];
-  state.debitosPhenomena.forEach(d => {
-    const aberto = Number(d.valor_total || 0) - Number(d.valor_pago || 0);
-    const op = document.createElement("option");
-    op.value = d.id;
-    op.dataset.aberto = aberto;
-    op.dataset.total = d.valor_total || 0;
-    op.dataset.pago = d.valor_pago || 0;
-    op.textContent = `${d.cerveja_nome} — ${dataHoraBR(d.criado_em)} — aberto ${fmtMoeda(aberto)}`;
-    sel.appendChild(op);
-  });
+  state.debitosPhenomena = (data || []).filter(
+    d => Number(d.valor_total || 0) - Number(d.valor_pago || 0) > 0
+  );
+
+  const resp = document.getElementById("phenPagResp");
+  if (resp && !resp.value && state.configuracoes.responsavel_padrao) {
+    resp.value = state.configuracoes.responsavel_padrao;
+  }
 
   atualizarResumoPagamentoPhenomena();
 }
@@ -3069,9 +3197,28 @@ function exportarPhenomenaCsv() {
   ]));
 
   linhas.push([]);
-  linhas.push(["Pagamentos"]);
-  linhas.push(["Data","Valor","Responsável","Observação"]);
-  p.pagamentos.forEach(pg => linhas.push([pg.criado_em, pg.valor || 0, pg.responsavel || "", pg.observacao || ""]));
+  linhas.push(["Recebimentos"]);
+  linhas.push(["Data","Valor","Débitos quitados","Débitos parciais","Responsável","Observação"]);
+  (p.recebimentos || []).forEach(pg => linhas.push([
+    pg.criado_em,
+    pg.valor || 0,
+    pg.debitos_quitados || 0,
+    pg.debitos_parciais || 0,
+    pg.responsavel || "",
+    pg.observacao || ""
+  ]));
+
+  linhas.push([]);
+  linhas.push(["Alocações de pagamentos"]);
+  linhas.push(["Data","Recebimento","Débito","Valor","Responsável","Observação"]);
+  p.pagamentos.forEach(pg => linhas.push([
+    pg.criado_em,
+    pg.recebimento_id || "",
+    pg.debito_id || "",
+    pg.valor || 0,
+    pg.responsavel || "",
+    pg.observacao || ""
+  ]));
 
   linhas.push([]);
   linhas.push(["Entradas"]);
