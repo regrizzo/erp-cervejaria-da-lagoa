@@ -1,5 +1,5 @@
 
-const APP_BUILD = "phenomena-retirada-incompleta-20260727";
+const APP_BUILD = "integridade-backup-operacoes-20260727";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -273,45 +273,158 @@ function invalidar(...nomes) {
   nomes.forEach(n => state.loaded[n] = false);
 }
 
+async function buscarTodasLinhas(
+  tabela,
+  {
+    colunas="*",
+    ordenarPor="id",
+    ascending=true,
+    desempatarPor="id",
+    filtrar=null,
+    tamanhoPagina=500,
+    verificarContagem=false
+  }={}
+) {
+  const linhas = [];
+  let inicio = 0;
+  let totalEsperado = null;
+
+  while (true) {
+    let consulta = verificarContagem
+      ? sb.from(tabela).select(colunas, { count:"exact" })
+      : sb.from(tabela).select(colunas);
+
+    if (typeof filtrar === "function") {
+      consulta = filtrar(consulta);
+    }
+
+    if (ordenarPor) {
+      consulta = consulta.order(ordenarPor, { ascending });
+    }
+    if (desempatarPor && desempatarPor !== ordenarPor) {
+      consulta = consulta.order(desempatarPor, { ascending:true });
+    }
+
+    const { data, error, count } = await consulta.range(
+      inicio,
+      inicio + tamanhoPagina - 1
+    );
+
+    if (error) {
+      throw new Error(`${tabela}: ${error.message}`);
+    }
+
+    if (verificarContagem && totalEsperado === null && count !== null) {
+      totalEsperado = Number(count);
+    }
+
+    const pagina = data || [];
+    linhas.push(...pagina);
+
+    if (
+      pagina.length < tamanhoPagina ||
+      (totalEsperado !== null && linhas.length >= totalEsperado)
+    ) {
+      break;
+    }
+
+    inicio += tamanhoPagina;
+  }
+
+  if (totalEsperado !== null && linhas.length !== totalEsperado) {
+    throw new Error(
+      `${tabela}: esperado(s) ${totalEsperado} registro(s), mas foram recebidos ${linhas.length}.`
+    );
+  }
+
+  return linhas;
+}
+
 async function carregarInicio(force=false) {
   if (state.loaded.inicio && !force) return;
   await carregarBaseCadastros(true);
   await carregarProducoesFermentando(true);
   await carregarConfiguracoesBase(true);
 
-  const [
-    estoque,
-    producoes,
-    envases,
-    clientes,
-    insumosEstoque,
-    saidas,
-    retornos,
-    movs,
-    barrisIncompletos,
-    entradasInsumos
-  ] = await Promise.all([
-    sb.from("estoque_cerveja").select("*"),
-    sb.from("producoes").select("*").order("data_producao", { ascending:false }),
-    sb.from("envases").select("*").order("data_envase", { ascending:false }),
-    sb.from("clientes").select("id", { count:"exact", head:true }),
-    sb.from("estoque_insumos").select("*"),
-    sb.from("saidas").select("*").order("data_saida", { ascending:false }).limit(250),
-    sb.from("retornos").select("*").order("data_retorno", { ascending:false }).limit(250),
-    sb.from("movimentacoes").select("*").order("criado_em", { ascending:false }).limit(8),
-    sb.from("barris_incompletos").select("*").eq("status","DISPONIVEL"),
-    sb.from("entradas_insumos").select("*").not("validade","is",null).order("validade", { ascending:true }).limit(100)
-  ]);
+  let respostasInicio;
+  try {
+    respostasInicio = await Promise.all([
+      buscarTodasLinhas("estoque_cerveja", {
+        ordenarPor:"cerveja_nome",
+        ascending:true
+      }),
+      buscarTodasLinhas("producoes", {
+        ordenarPor:"data_producao",
+        ascending:false
+      }),
+      buscarTodasLinhas("envases", {
+        ordenarPor:"data_envase",
+        ascending:false
+      }),
+      sb.from("clientes").select("id", { count:"exact", head:true }),
+      buscarTodasLinhas("estoque_insumos", {
+        ordenarPor:"tipo",
+        ascending:true
+      }),
+      buscarTodasLinhas("saidas", {
+        ordenarPor:"data_saida",
+        ascending:false
+      }),
+      buscarTodasLinhas("retornos", {
+        ordenarPor:"data_retorno",
+        ascending:false
+      }),
+      sb.from("movimentacoes").select("*").order("criado_em", { ascending:false }).limit(8),
+      buscarTodasLinhas("barris_incompletos", {
+        ordenarPor:"criado_em",
+        ascending:false,
+        filtrar:q => q.eq("status","DISPONIVEL")
+      }),
+      sb.from("entradas_insumos").select("*").not("validade","is",null).order("validade", { ascending:true }).limit(100)
+    ]);
+  } catch(e) {
+    const box = document.getElementById("dashboardAlertas");
+    if (box) {
+      box.innerHTML = `<div class="item itemAtrasado"><span>${escapeHtml(
+        "Não foi possível carregar o painel completo: " + e.message
+      )}</span></div>`;
+    }
+    state.loaded.inicio = false;
+    return;
+  }
 
-  const estoqueRows = estoque.data || [];
-  const producoesRows = producoes.data || [];
-  const envaseRows = envases.data || [];
-  const insumosRows = insumosEstoque.data || [];
-  const saidaRows = saidas.data || [];
-  const retornoRows = retornos.data || [];
+  const [
+    estoqueRows,
+    producoesRows,
+    envaseRows,
+    clientes,
+    insumosRows,
+    saidaRows,
+    retornoRows,
+    movs,
+    barrisIncompletosRows,
+    entradasInsumos
+  ] = respostasInicio;
+
+  const erroInicio = [
+    clientes,
+    movs,
+    entradasInsumos
+  ].find(resposta => resposta?.error);
+
+  if (erroInicio) {
+    const box = document.getElementById("dashboardAlertas");
+    if (box) {
+      box.innerHTML = `<div class="item itemAtrasado"><span>${escapeHtml(
+        "Não foi possível carregar o painel completo: " + erroInicio.error.message
+      )}</span></div>`;
+    }
+    state.loaded.inicio = false;
+    return;
+  }
+
   const saidaRowsComRetorno = saidaRows.filter(r => clienteControlaRetornoBarris(r.cliente_nome));
   const retornoRowsComControle = retornoRows.filter(r => clienteControlaRetornoBarris(r.cliente_nome));
-  const barrisIncompletosRows = barrisIncompletos.data || [];
 
   const litrosEstoque =
     estoqueRows.reduce((s,r) => s + Number(r.litros || 0), 0)
@@ -2150,13 +2263,58 @@ async function carregarPainelDia(force=false) {
   const minCervejaPadrao = getConfigNumero("minimo_cerveja_padrao_litros", 0);
   const minPilsen = getConfigNumero("minimo_pilsen_litros", 0);
 
-  const [ec, ei, saidasPainel, retornosPainel, entradasValidade] = await Promise.all([
-    sb.from("estoque_cerveja").select("*"),
-    sb.from("estoque_insumos").select("*"),
-    sb.from("saidas").select("*").order("data_saida", { ascending:true }),
-    sb.from("retornos").select("*"),
-    sb.from("entradas_insumos").select("*").not("validade","is",null).order("validade", { ascending:true })
-  ]);
+  let ec;
+  let ei;
+  let saidasPainelRows;
+  let retornosPainelRows;
+  let entradasValidadeRows;
+
+  try {
+    [
+      ec,
+      ei,
+      saidasPainelRows,
+      retornosPainelRows,
+      entradasValidadeRows
+    ] = await Promise.all([
+      sb.from("estoque_cerveja").select("*"),
+      sb.from("estoque_insumos").select("*"),
+      buscarTodasLinhas("saidas", {
+        ordenarPor:"data_saida",
+        ascending:true
+      }),
+      buscarTodasLinhas("retornos", {
+        ordenarPor:"criado_em",
+        ascending:true
+      }),
+      buscarTodasLinhas("entradas_insumos", {
+        ordenarPor:"validade",
+        ascending:true,
+        filtrar:consulta => consulta.not("validade","is",null)
+      })
+    ]);
+  } catch(e) {
+    const box = document.getElementById("painelDiaConteudo");
+    if (box) {
+      box.innerHTML = `<div class="item itemAtrasado">${escapeHtml(
+        "Não foi possível carregar o painel do dia: " + e.message
+      )}</div>`;
+    }
+    state.loaded.painelDia = false;
+    return;
+  }
+
+  const erroPainel = [ec, ei].find(resposta => resposta?.error);
+  if (erroPainel) {
+    const box = document.getElementById("painelDiaConteudo");
+    if (box) {
+      box.innerHTML = `<div class="item itemAtrasado">${escapeHtml(
+        "Não foi possível carregar o painel do dia: " + erroPainel.error.message
+      )}</div>`;
+    }
+    state.loaded.painelDia = false;
+    return;
+  }
 
   const estoquePorCerveja = new Map();
   state.cervejas.forEach(c => estoquePorCerveja.set(c.nome, 0));
@@ -2222,8 +2380,8 @@ async function carregarPainelDia(force=false) {
   const limiteData = new Date();
   limiteData.setDate(limiteData.getDate() - diasBarrilCliente);
   const alertasBarris = agruparAbertosPorCliente(
-    saidasPainel.data || [],
-    retornosPainel.data || []
+    saidasPainelRows,
+    retornosPainelRows
   ).filter(c => (
     c.dataMaisAntiga
     && new Date(String(c.dataMaisAntiga).slice(0,10) + "T00:00:00") <= limiteData
@@ -2240,7 +2398,7 @@ async function carregarPainelDia(force=false) {
   const limiteValidade = new Date(hoje);
   limiteValidade.setDate(limiteValidade.getDate() + diasValidade);
 
-  const validadesProximas = (entradasValidade.data || []).filter(e => {
+  const validadesProximas = entradasValidadeRows.filter(e => {
     const d = new Date(String(e.validade) + "T00:00:00");
     return d <= limiteValidade;
   }).slice(0, 20);
@@ -2297,36 +2455,79 @@ async function carregarRelatorioMensal(force=false) {
   dFim.setMonth(dFim.getMonth() + 1);
   const fim = dFim.toISOString().slice(0,10);
 
-  const [producoes, envases, saidas, insumos, retornos, debitosPhen, pagamentosPhen] = await Promise.all([
-    sb.from("producoes").select("*").gte("data_producao", inicio).lt("data_producao", fim),
-    sb.from("envases").select("*").gte("data_envase", inicio).lt("data_envase", fim),
-    sb.from("saidas").select("*").gte("data_saida", inicio).lt("data_saida", fim),
-    sb.from("producao_insumos").select("*").gte("criado_em", inicio).lt("criado_em", fim),
-    sb.from("retornos").select("*").gte("data_retorno", inicio).lt("data_retorno", fim),
-    sb.from("phenomena_debitos").select("*").gte("criado_em", inicio).lt("criado_em", fim),
-    sb.from("phenomena_pagamentos").select("*").gte("criado_em", inicio).lt("criado_em", fim)
-  ]);
+  let dadosRelatorio;
+  try {
+    dadosRelatorio = await Promise.all([
+      buscarTodasLinhas("producoes", {
+        ordenarPor:"data_producao",
+        filtrar:q => q.gte("data_producao", inicio).lt("data_producao", fim)
+      }),
+      buscarTodasLinhas("envases", {
+        ordenarPor:"data_envase",
+        filtrar:q => q.gte("data_envase", inicio).lt("data_envase", fim)
+      }),
+      buscarTodasLinhas("saidas", {
+        ordenarPor:"data_saida",
+        filtrar:q => q.gte("data_saida", inicio).lt("data_saida", fim)
+      }),
+      buscarTodasLinhas("producao_insumos", {
+        ordenarPor:"criado_em",
+        filtrar:q => q.gte("criado_em", inicio).lt("criado_em", fim)
+      }),
+      buscarTodasLinhas("retornos", {
+        ordenarPor:"data_retorno",
+        filtrar:q => q.gte("data_retorno", inicio).lt("data_retorno", fim)
+      }),
+      buscarTodasLinhas("phenomena_debitos", {
+        ordenarPor:"criado_em",
+        filtrar:q => q.gte("criado_em", inicio).lt("criado_em", fim)
+      }),
+      buscarTodasLinhas("phenomena_pagamentos", {
+        ordenarPor:"criado_em",
+        filtrar:q => q.gte("criado_em", inicio).lt("criado_em", fim)
+      })
+    ]);
+  } catch(e) {
+    const box = document.getElementById("relatorioConteudo");
+    if (box) {
+      box.innerHTML = `<div class="item itemAtrasado">${escapeHtml(
+        "Não foi possível gerar o relatório completo: " + e.message
+      )}</div>`;
+    }
+    state.ultimoRelatorioMensal = null;
+    return;
+  }
 
-  const litrosProduzidos = (producoes.data || []).reduce((s,r)=>s+Number(r.litros_produzidos||0),0);
-  const litrosEnvasados = (envases.data || []).reduce((s,r)=>s+Number(r.litros_total||0),0);
-  const perdas = (envases.data || []).reduce((s,r)=>s+Number(r.perda||0),0);
-  const litrosSaidas = (saidas.data || []).reduce((s,r)=>s+Number(r.litros||0),0);
-  const barrisRetornados = (retornos.data || []).reduce((s,r)=>s+somaBarris(r.q10,r.q20,r.q30,r.q50),0);
-  const valorDebitosPhen = (debitosPhen.data || []).reduce((s,r)=>s+Number(r.valor_total||0),0);
-  const valorPagamentosPhen = (pagamentosPhen.data || []).reduce((s,r)=>s+Number(r.valor||0),0);
+  const [
+    producoes,
+    envases,
+    saidas,
+    insumos,
+    retornos,
+    debitosPhen,
+    pagamentosPhen
+  ] = dadosRelatorio;
+
+  const litrosProduzidos = producoes.reduce((s,r)=>s+Number(r.litros_produzidos||0),0);
+  const litrosEnvasados = envases.reduce((s,r)=>s+Number(r.litros_total||0),0);
+  const perdas = envases.reduce((s,r)=>s+Number(r.perda||0),0);
+  const litrosSaidas = saidas.reduce((s,r)=>s+Number(r.litros||0),0);
+  const barrisRetornados = retornos.reduce((s,r)=>s+somaBarris(r.q10,r.q20,r.q30,r.q50),0);
+  const valorDebitosPhen = debitosPhen.reduce((s,r)=>s+Number(r.valor_total||0),0);
+  const valorPagamentosPhen = pagamentosPhen.reduce((s,r)=>s+Number(r.valor||0),0);
 
   const porCerveja = {};
-  (saidas.data || []).forEach(s => porCerveja[s.cerveja_nome] = (porCerveja[s.cerveja_nome] || 0) + Number(s.litros || 0));
+  saidas.forEach(s => porCerveja[s.cerveja_nome] = (porCerveja[s.cerveja_nome] || 0) + Number(s.litros || 0));
 
   const porCliente = {};
-  (saidas.data || []).forEach(s => porCliente[s.cliente_nome] = (porCliente[s.cliente_nome] || 0) + Number(s.litros || 0));
+  saidas.forEach(s => porCliente[s.cliente_nome] = (porCliente[s.cliente_nome] || 0) + Number(s.litros || 0));
 
-  const lotesProduzidos = (producoes.data || [])
+  const lotesProduzidos = producoes
     .sort((a,b) => String(a.data_producao).localeCompare(String(b.data_producao)))
     .map(p => `${p.lote} — ${p.cerveja_nome}: ${fmt(p.litros_produzidos)} L (${dataBR(p.data_producao)})`);
 
   const consumo = {};
-  (insumos.data || []).forEach(i => {
+  insumos.forEach(i => {
     const k = `${i.tipo} — ${i.insumo_nome}`;
     consumo[k] = (consumo[k] || 0) + Number(i.quantidade || 0);
   });
@@ -2996,28 +3197,75 @@ async function carregarPhenomena(force=false) {
 
   const periodo = getPeriodoInputs("phenFiltro");
 
-  let qEntradas = sb.from("phenomena_entradas").select("*").order("criado_em", { ascending:false }).limit(500);
-  let qRetiradas = sb.from("movimentacoes").select("*").eq("tipo","RETIRADA PHENOMENA").order("criado_em", { ascending:false }).limit(500);
-  let qDebitos = sb.from("phenomena_debitos").select("*").order("criado_em", { ascending:false }).limit(500);
-  let qPagamentos = sb.from("phenomena_pagamentos").select("*").order("criado_em", { ascending:false }).limit(500);
-  let qRecebimentos = sb.from("phenomena_recebimentos").select("*").order("criado_em", { ascending:false }).limit(500);
+  const filtrarPeriodoPhenomena = consulta => {
+    let filtrada = consulta;
+    if (periodo.de) filtrada = filtrada.gte("criado_em", periodo.de);
+    if (periodo.ateIso) filtrada = filtrada.lt("criado_em", periodo.ateIso);
+    return filtrada;
+  };
 
-  if (periodo.de) {
-    qEntradas = qEntradas.gte("criado_em", periodo.de);
-    qRetiradas = qRetiradas.gte("criado_em", periodo.de);
-    qDebitos = qDebitos.gte("criado_em", periodo.de);
-    qPagamentos = qPagamentos.gte("criado_em", periodo.de);
-    qRecebimentos = qRecebimentos.gte("criado_em", periodo.de);
-  }
-  if (periodo.ateIso) {
-    qEntradas = qEntradas.lt("criado_em", periodo.ateIso);
-    qRetiradas = qRetiradas.lt("criado_em", periodo.ateIso);
-    qDebitos = qDebitos.lt("criado_em", periodo.ateIso);
-    qPagamentos = qPagamentos.lt("criado_em", periodo.ateIso);
-    qRecebimentos = qRecebimentos.lt("criado_em", periodo.ateIso);
+  let estoque;
+  let incompletos;
+  let entradas;
+  let retiradas;
+  let debitos;
+  let pagamentos;
+  let recebimentos;
+  let debitosTodos;
+
+  let respostasPhenomena;
+  try {
+    respostasPhenomena = await Promise.all([
+      sb.from("estoque_cerveja").select("*").eq("origem","PHENOMENA").order("cerveja_nome"),
+      sb.from("barris_incompletos")
+        .select("*")
+        .eq("origem","PHENOMENA")
+        .eq("status","DISPONIVEL")
+        .order("cerveja_nome"),
+      buscarTodasLinhas("phenomena_entradas", {
+        ordenarPor:"criado_em",
+        ascending:false,
+        filtrar:filtrarPeriodoPhenomena
+      }),
+      buscarTodasLinhas("movimentacoes", {
+        ordenarPor:"criado_em",
+        ascending:false,
+        filtrar:q => filtrarPeriodoPhenomena(
+          q.eq("tipo","RETIRADA PHENOMENA")
+        )
+      }),
+      buscarTodasLinhas("phenomena_debitos", {
+        ordenarPor:"criado_em",
+        ascending:false,
+        filtrar:filtrarPeriodoPhenomena
+      }),
+      buscarTodasLinhas("phenomena_pagamentos", {
+        ordenarPor:"criado_em",
+        ascending:false,
+        filtrar:filtrarPeriodoPhenomena
+      }),
+      buscarTodasLinhas("phenomena_recebimentos", {
+        ordenarPor:"criado_em",
+        ascending:false,
+        filtrar:filtrarPeriodoPhenomena
+      }),
+      buscarTodasLinhas("phenomena_debitos", {
+        ordenarPor:"criado_em",
+        ascending:false
+      })
+    ]);
+  } catch(e) {
+    const box = document.getElementById("debitosPhenomena");
+    if (box) {
+      box.innerHTML = `<div class="item itemAtrasado">${escapeHtml(
+        "Não foi possível carregar o histórico completo da Phenomena: " + e.message
+      )}</div>`;
+    }
+    state.loaded.phenomena = false;
+    return;
   }
 
-  const [
+  [
     estoque,
     incompletos,
     entradas,
@@ -3026,27 +3274,26 @@ async function carregarPhenomena(force=false) {
     pagamentos,
     recebimentos,
     debitosTodos
-  ] = await Promise.all([
-    sb.from("estoque_cerveja").select("*").eq("origem","PHENOMENA").order("cerveja_nome"),
-    sb.from("barris_incompletos")
-      .select("*")
-      .eq("origem","PHENOMENA")
-      .eq("status","DISPONIVEL")
-      .order("cerveja_nome"),
-    qEntradas,
-    qRetiradas,
-    qDebitos,
-    qPagamentos,
-    qRecebimentos,
-    sb.from("phenomena_debitos").select("*").order("criado_em", { ascending:false }).limit(1000)
-  ]);
+  ] = respostasPhenomena;
 
-  state.debitosPhenomena = debitosTodos.data || [];
-  const debitosPeriodo = debitos.data || [];
-  const pagamentosPeriodo = pagamentos.data || [];
-  const recebimentosPeriodo = recebimentos.data || [];
-  const retiradasPeriodo = retiradas.data || [];
-  const entradasPeriodo = entradas.data || [];
+  const erroPhenomena = [estoque, incompletos].find(r => r?.error);
+  if (erroPhenomena) {
+    const box = document.getElementById("debitosPhenomena");
+    if (box) {
+      box.innerHTML = `<div class="item itemAtrasado">${escapeHtml(
+        "Não foi possível carregar a Phenomena: " + erroPhenomena.error.message
+      )}</div>`;
+    }
+    state.loaded.phenomena = false;
+    return;
+  }
+
+  state.debitosPhenomena = debitosTodos;
+  const debitosPeriodo = debitos;
+  const pagamentosPeriodo = pagamentos;
+  const recebimentosPeriodo = recebimentos;
+  const retiradasPeriodo = retiradas;
+  const entradasPeriodo = entradas;
 
   const debitosAbertos = state.debitosPhenomena.filter(d => d.status !== "PAGO");
   const saldoAberto = debitosAbertos.reduce((s,d) => s + (Number(d.valor_total || 0) - Number(d.valor_pago || 0)), 0);
@@ -3626,13 +3873,30 @@ async function salvarRetorno() {
 async function carregarRetornos(force=false) {
   if (state.loaded.retornos && !force) return;
 
-  const [saidas, retornos] = await Promise.all([
-    sb.from("saidas").select("*").order("data_saida", { ascending:true }).limit(1500),
-    sb.from("retornos").select("*").order("criado_em", { ascending:false }).limit(1500)
-  ]);
+  let saidaRows;
+  let retornosRows;
+  try {
+    [saidaRows, retornosRows] = await Promise.all([
+      buscarTodasLinhas("saidas", {
+        ordenarPor:"data_saida",
+        ascending:true
+      }),
+      buscarTodasLinhas("retornos", {
+        ordenarPor:"criado_em",
+        ascending:false
+      })
+    ]);
+  } catch(e) {
+    const box = document.getElementById("barrisPorCliente");
+    if (box) {
+      box.innerHTML = `<div class="item itemAtrasado">${escapeHtml(
+        "Não foi possível carregar o histórico completo de retornos: " + e.message
+      )}</div>`;
+    }
+    state.loaded.retornos = false;
+    return;
+  }
 
-  const saidaRows = saidas.data || [];
-  const retornosRows = retornos.data || [];
   const saidaRowsComRetorno = saidaRows.filter(r => clienteControlaRetornoBarris(r.cliente_nome));
   const retornosRowsComControle = retornosRows.filter(r => clienteControlaRetornoBarris(r.cliente_nome));
   state.retornos = retornosRows;
@@ -3772,7 +4036,7 @@ async function carregarExtratoCliente() {
         <div class="sub">${detalharBarrisComSaldo(aberto.q10,aberto.q20,aberto.q30,aberto.q50) || "Nenhum barril em aberto."}</div>
         <div class="codigosBox"><strong>Códigos em aberto</strong>${renderCodigosTags(codigosAbertos)}</div>
         <div class="rowActions">
-          <button class="btnTiny btnEdit" onclick="abrirRetornoCliente('${clienteId}','${escapeHtml(clienteNome)}')">Registrar retorno deste cliente</button>
+          <button class="btnTiny btnEdit" data-id="${escapeHtml(clienteId)}" data-nome="${escapeHtml(clienteNome)}" onclick="abrirRetornoCliente(this.dataset.id,this.dataset.nome)">Registrar retorno deste cliente</button>
         </div>
       </div>
     ` : `

@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ERP Cervejaria da Lagoa</title>
 
   <meta name="description" content="ERP Cervejaria da Lagoa — painel de controle e gestão de produção, estoque, lotes, envases, clientes e barris." />
@@ -34,7 +34,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=phenomena-retirada-incompleta-20260727" />
+  <link rel="stylesheet" href="./styles.css?v=integridade-backup-operacoes-20260727" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -306,7 +306,7 @@
 
           <div id="prodResumo" class="infoBox">Preencha os dados para conferir a produção.</div>
 
-          <button class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarProducao()">Conferir e salvar produção</button>
+          <button id="producaoSalvarBtn" class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarProducao()">Conferir e salvar produção</button>
           <div id="prodErro" class="erro"></div>
         </div>
 
@@ -323,7 +323,7 @@
           <label>Observação</label>
           <textarea id="dryObs"></textarea>
 
-          <button data-editar-modulo="producao" onclick="salvarDryHop()">Salvar dry hopping</button>
+          <button id="dryHopSalvarBtn" data-editar-modulo="producao" onclick="salvarDryHop()">Salvar dry hopping</button>
           <div id="dryErro" class="erro"></div>
         </div>
 
@@ -382,7 +382,7 @@
           <label>Observação</label>
           <textarea id="envaseObs"></textarea>
 
-          <button class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarEnvase()">Conferir e registrar envase</button>
+          <button id="envaseSalvarBtn" class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarEnvase()">Conferir e registrar envase</button>
           <div id="envaseErro" class="erro"></div>
         </div>
 
@@ -427,7 +427,7 @@
           <label>Observação</label>
           <textarea id="entradaObs"></textarea>
 
-          <button data-editar-modulo="estoque" onclick="salvarEntradaCerveja()">Registrar entrada</button>
+          <button id="entradaCervejaSalvarBtn" data-editar-modulo="estoque" onclick="salvarEntradaCerveja()">Registrar entrada</button>
           <div id="entradaCervejaErro" class="erro"></div>
         </div>
 
@@ -587,7 +587,7 @@
           <label>Observação geral</label>
           <textarea id="saidaObs"></textarea>
 
-          <button data-editar-modulo="saidas" onclick="salvarSaidaMultipla()">Conferir e registrar saída</button>
+          <button id="saidaSalvarBtn" data-editar-modulo="saidas" onclick="salvarSaidaMultipla()">Conferir e registrar saída</button>
           <div id="saidaErro" class="erro"></div>
         </div>
 
@@ -904,7 +904,7 @@
         <div class="box">
           <h3>Gerar backup</h3>
           <p class="muted">Gera um arquivo JSON com os dados do ERP.</p>
-          <button onclick="gerarBackupJson()">💾 Gerar backup JSON</button>
+          <button id="backupGerarBtn" onclick="gerarBackupJson()">💾 Gerar backup JSON</button>
           <div id="backupStatus" class="muted" style="margin-top:10px;"></div>
         </div>
 
@@ -1227,9 +1227,9 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=phenomena-retirada-incompleta-20260727"></script>
-  <script src="./js/operacoes.js?v=phenomena-retirada-incompleta-20260727"></script>
-  <script src="./js/administracao.js?v=phenomena-retirada-incompleta-20260727"></script>
-  <script src="./js/acesso.js?v=phenomena-retirada-incompleta-20260727"></script>
+  <script src="./app.js?v=integridade-backup-operacoes-20260727"></script>
+  <script src="./js/operacoes.js?v=integridade-backup-operacoes-20260727"></script>
+  <script src="./js/administracao.js?v=integridade-backup-operacoes-20260727"></script>
+  <script src="./js/acesso.js?v=integridade-backup-operacoes-20260727"></script>
 </body>
 </html>

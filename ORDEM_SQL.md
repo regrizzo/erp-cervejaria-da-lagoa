@@ -11,12 +11,15 @@ Execute apenas:
 2. `06_BARRIL_INCOMPLETO_DISPONIVEL.sql`
 3. `07_PAGAMENTO_PHENOMENA_FIFO.sql`
 4. `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql`
+5. `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`
 
 O primeiro arquivo consolida a estrutura original, envase detalhado, retornos,
 Phenomena, correções, restauração e controle de acesso. O segundo cria o
 controle de barris incompletos disponíveis. O terceiro registra pagamentos da
 Phenomena por valor e os distribui do débito mais antigo para o mais novo. O
-quarto permite retirar barris incompletos da Phenomena pelo volume real.
+quarto permite retirar barris incompletos da Phenomena pelo volume real. O
+quinto protege valores de estoque, reforça a auditoria e torna atômicas as
+operações de entrada, saída, produção, envase e dry hopping.
 
 ## Banco existente
 
@@ -56,6 +59,20 @@ lançamento passa a 88 L / R$ 264,00 e o lançamento seguinte retorna a
 30 L / R$ 90,00. O envase histórico passa de 19 barris completos para
 18 completos + 1 incompleto de 28 L, mantendo inalterado o estoque atual de
 15 barris completos.
+
+### Integridade e operações atômicas
+
+Depois das atualizações anteriores, aplique a proteção atual:
+
+1. faça e guarde um backup;
+2. execute `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`;
+3. confirme que o Supabase mostrou sucesso;
+4. só então publique os arquivos atuais do site.
+
+O SQL 10 não apaga o histórico existente. As novas validações são aplicadas a
+novos registros e a registros alterados. Entrada de cerveja, saída múltipla,
+produção, envase e dry hopping passam a ser concluídos como uma única operação:
+se alguma etapa falhar, todas as alterações daquela operação são canceladas.
 
 ## Arquivos históricos
 
