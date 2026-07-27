@@ -64,8 +64,9 @@ Para uma instalação nova:
 
 1. Execute `01_BANCO_COMPLETO.sql` no editor SQL do Supabase.
 2. Execute `06_BARRIL_INCOMPLETO_DISPONIVEL.sql`.
-3. Configure os provedores de autenticação desejados no Supabase.
-4. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
+3. Execute `07_PAGAMENTO_PHENOMENA_FIFO.sql`.
+4. Configure os provedores de autenticação desejados no Supabase.
+5. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
    usuários já existentes no momento da instalação em administradores ativos.
 
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
@@ -112,4 +113,5 @@ depende das políticas de Row Level Security. Nunca coloque uma chave
 
 O acesso visual da interface não substitui as políticas do banco. Mudanças em
 perfis e permissões devem sempre preservar as políticas presentes em
-`01_BANCO_COMPLETO.sql` e `06_BARRIL_INCOMPLETO_DISPONIVEL.sql`.
+`01_BANCO_COMPLETO.sql`, `06_BARRIL_INCOMPLETO_DISPONIVEL.sql` e
+`07_PAGAMENTO_PHENOMENA_FIFO.sql`.

@@ -8,7 +8,7 @@ const TABELAS_BACKUP_ERP = [
   "producao_insumos","dry_hopping","envases","entradas_cerveja",
   "phenomena_entradas","barris_incompletos","saidas","retornos","entradas_insumos",
   "ajustes_estoque","fermento_historico","phenomena_debitos",
-  "phenomena_pagamentos","movimentacoes","configuracoes","backups",
+  "phenomena_recebimentos","phenomena_pagamentos","movimentacoes","configuracoes","backups",
   "correcoes_lancamentos","restauracoes_backup"
 ];
 
@@ -18,7 +18,7 @@ const ORDEM_RESTAURACAO_ERP = [
   "producao_insumos","dry_hopping","envases","entradas_cerveja",
   "phenomena_entradas","barris_incompletos","saidas","retornos","entradas_insumos",
   "ajustes_estoque","fermento_historico","phenomena_debitos",
-  "phenomena_pagamentos","movimentacoes","configuracoes","backups",
+  "phenomena_recebimentos","phenomena_pagamentos","movimentacoes","configuracoes","backups",
   "correcoes_lancamentos","restauracoes_backup"
 ];
 

@@ -34,7 +34,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=barril-incompleto-20260723" />
+  <link rel="stylesheet" href="./styles.css?v=phenomena-pagamento-fifo-20260727" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -740,13 +740,11 @@
         </div>
 
         <div id="formPagamentoPhenomena" class="formBox" style="display:none;">
-          <h3>Baixar pagamento Phenomena</h3>
+          <h3>Registrar pagamento Phenomena</h3>
+          <p class="muted">O valor será distribuído automaticamente do débito mais antigo para o mais novo.</p>
 
-          <label>Débito aberto</label>
-          <select id="phenPagDebito" onchange="atualizarResumoPagamentoPhenomena()"></select>
-
-          <label>Valor pago</label>
-          <input id="phenPagValor" type="number" min="0" step="0.01" placeholder="R$">
+          <label>Valor recebido</label>
+          <input id="phenPagValor" type="number" min="0.01" step="0.01" placeholder="R$ 0,00" oninput="atualizarResumoPagamentoPhenomena()">
 
           <label>Responsável</label>
           <input id="phenPagResp" placeholder="Quem registrou">
@@ -754,9 +752,9 @@
           <label>Observação</label>
           <textarea id="phenPagObs"></textarea>
 
-          <div class="infoBox" id="phenPagResumo">Selecione um débito.</div>
+          <div class="infoBox pagamentoFifoResumo" id="phenPagResumo">Carregando débitos abertos...</div>
 
-          <button data-editar-modulo="phenomena" onclick="salvarPagamentoPhenomena()">Registrar baixa</button>
+          <button id="phenPagSalvarBtn" data-editar-modulo="phenomena" onclick="salvarPagamentoPhenomena()">Registrar pagamento automático</button>
           <div id="phenPagErro" class="erro"></div>
         </div>
 
@@ -1223,9 +1221,9 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=modularizado-20260726"></script>
-  <script src="./js/operacoes.js?v=modularizado-20260726"></script>
-  <script src="./js/administracao.js?v=modularizado-20260726"></script>
-  <script src="./js/acesso.js?v=modularizado-20260726"></script>
+  <script src="./app.js?v=phenomena-pagamento-fifo-20260727"></script>
+  <script src="./js/operacoes.js?v=phenomena-pagamento-fifo-20260727"></script>
+  <script src="./js/administracao.js?v=phenomena-pagamento-fifo-20260727"></script>
+  <script src="./js/acesso.js?v=phenomena-pagamento-fifo-20260727"></script>
 </body>
 </html>
