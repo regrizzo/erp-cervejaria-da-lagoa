@@ -124,50 +124,40 @@ async function salvarEntradaCerveja() {
     return;
   }
 
-  const erro = await somarEstoqueCerveja(
-    cerveja_nome,
-    origem,
-    q10,q20,q30,q50,
-    observacao
-  );
-
-  if (erro) {
-    mostrarErro("entradaCervejaErro", erro.message);
-    return;
+  const btn = document.getElementById("entradaCervejaSalvarBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando entrada...";
   }
 
-  const cerveja = state.cervejas.find(c => c.nome === cerveja_nome);
-  const litros = litrosBarris(q10,q20,q30,q50);
+  try {
+    const { error } = await sb.rpc("erp_registrar_entrada_cerveja", {
+      p_cerveja_nome:cerveja_nome,
+      p_origem:origem,
+      p_q10:q10,
+      p_q20:q20,
+      p_q30:q30,
+      p_q50:q50,
+      p_observacao:observacao || null
+    });
 
-  const { data:entrada, error:entradaErro } = await sb
-    .from("entradas_cerveja")
-    .insert({
-      cerveja_id:cerveja ? cerveja.id : null,
-      cerveja_nome,
-      origem,
-      q10,q20,q30,q50,
-      litros,
-      observacao
-    })
-    .select()
-    .single();
-
-  if (entradaErro) {
+    if (error) throw error;
+  } catch(e) {
+    const mensagem = String(
+      e?.message || e || "Não foi possível registrar a entrada."
+    );
     mostrarErro(
       "entradaCervejaErro",
-      "O estoque foi atualizado, mas não foi possível registrar o histórico da entrada: " + entradaErro.message
+      mensagem.includes("erp_registrar_entrada_cerveja")
+        ? "A atualização SQL 10 de integridade ainda não foi aplicada no Supabase."
+        : mensagem
     );
     return;
-  }
-
-  if (origem === "PHENOMENA") {
-    await sb.from("phenomena_entradas").insert({
-      entrada_cerveja_id:entrada.id,
-      cerveja_nome,
-      q10,q20,q30,q50,
-      litros,
-      observacao
-    });
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "Registrar entrada";
+    }
   }
 
   [
@@ -276,88 +266,44 @@ async function salvarSaidaMultipla() {
   resumo += "Confirmar saída com baixa de estoque?";
   if (!confirm(resumo)) return;
 
-  const grupo_saida = novoUUID();
+  const btn = document.getElementById("saidaSalvarBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando saída...";
+  }
 
   try {
-    for (const { item, sim } of simulacoes) {
-      for (const u of sim.updates) {
-        const cerveja = state.cervejas.find(
-          c => c.nome === item.cerveja_nome
-        );
-
-        const { error:estoqueErro } = await sb
-          .from("estoque_cerveja")
-          .upsert({
-            cerveja_id:cerveja ? cerveja.id : null,
-            cerveja_nome:item.cerveja_nome,
-            origem:u.origem,
-            q10:Number(u.q10 || 0),
-            q20:Number(u.q20 || 0),
-            q30:Number(u.q30 || 0),
-            q50:Number(u.q50 || 0),
-            litros:Number(u.litros || 0),
-            atualizado_em:new Date().toISOString()
-          }, {
-            onConflict:"cerveja_nome,origem"
-          });
-
-        if (estoqueErro) throw estoqueErro;
-      }
-
-      const litros = litrosBarris(
-        item.q10,item.q20,item.q30,item.q50
-      );
-
-      const origem_baixada = Object.entries(sim.resumoPorOrigem)
-        .map(([o,l]) => `${o}: ${fmt(l)}L`)
-        .join(" | ");
-
-      const cerveja = state.cervejas.find(
-        c => c.nome === item.cerveja_nome
-      );
-
-      const { error:saidaErro } = await sb.from("saidas").insert({
-        grupo_saida,
-        cliente_id:clienteId,
-        cliente_nome,
-        cerveja_id:cerveja ? cerveja.id : null,
+    const { error } = await sb.rpc("erp_registrar_saida_multipla", {
+      p_cliente_id:clienteId,
+      p_itens:itens.map(item => ({
         cerveja_nome:item.cerveja_nome,
         q10:item.q10,
         q20:item.q20,
         q30:item.q30,
         q50:item.q50,
-        litros,
-        codigos_barris:item.codigos_barris,
-        origem_baixada,
-        detalhes_baixa:sim.baixas,
-        responsavel,
-        observacao
-      });
+        codigos_barris:item.codigos_barris || null
+      })),
+      p_responsavel:responsavel || null,
+      p_observacao:observacao || null
+    });
 
-      if (saidaErro) throw saidaErro;
-
-      await sb.from("movimentacoes").insert({
-        tipo:"SAIDA ESTOQUE",
-        categoria:"CERVEJA",
-        item_nome:item.cerveja_nome,
-        quantidade:-Math.abs(litros),
-        unidade:"L",
-        destino:cliente_nome,
-        cliente_nome,
-        observacao:`${origem_baixada}${
-          item.codigos_barris
-            ? " — Códigos: " + item.codigos_barris
-            : ""
-        }${observacao ? " — " + observacao : ""}`,
-        responsavel
-      });
-    }
+    if (error) throw error;
   } catch(e) {
+    const mensagem = String(
+      e?.message || e || "Não foi possível registrar a saída."
+    );
     mostrarErro(
       "saidaErro",
-      "Erro ao salvar saída: " + e.message
+      mensagem.includes("erp_registrar_saida_multipla")
+        ? "A atualização SQL 10 de integridade ainda não foi aplicada no Supabase."
+        : "Erro ao salvar saída: " + mensagem
     );
     return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "Conferir e registrar saída";
+    }
   }
 
   document.getElementById("saidaResponsavel").value = "";
@@ -458,128 +404,51 @@ async function salvarEnvase() {
 
   if (!confirm(resumo)) return;
 
-  const statusNovo = finalizar
-    ? "FINALIZADO"
-    : calc.saldoDepois <= 0.01
-      ? "ENVASADO"
-      : "PARCIALMENTE_ENVASADO";
-
-  const observacaoDetalhada = [
-    obs,
-    incompleto > 0
-      ? `Barril incompleto: ${fmt(incompleto)} L em barril de ${fmt(tamanhoIncompleto)} L${codigoIncompleto ? `, código ${codigoIncompleto}` : ""}`
-      : "",
-    `Bar próprio: ${fmt(barProprio)} L`,
-    `Perda: ${fmt(calc.perdaFinal)} L`,
-    `Saldo após: ${fmt(calc.saldoDepois)} L`
-  ].filter(Boolean).join(" • ");
-
-  const { data:envase, error:envErr } = await sb
-    .from("envases")
-    .insert({
-      producao_id:prod.id,
-      lote,
-      cerveja_nome:prod.cerveja_nome,
-      origem,
-      q10,q20,q30,q50,
-      litros_barris:calc.litrosBarrisCompletos,
-      litros_incompleto_bar:incompleto + barProprio,
-      litros_incompleto:incompleto,
-      barril_incompleto_tamanho:incompleto > 0 ? tamanhoIncompleto : null,
-      barril_incompleto_codigo:incompleto > 0 ? (codigoIncompleto || null) : null,
-      litros_bar_proprio:barProprio,
-      litros_total:calc.totalEnvaseAtual,
-      perda:calc.perdaFinal,
-      perda_informada:calc.perdaFinal,
-      saldo_apos:calc.saldoDepois,
-      finalizado:finalizar,
-      observacao:observacaoDetalhada
-    })
-    .select()
-    .single();
-
-  if (envErr) {
-    mostrarErro("envaseErro", envErr.message);
-    return;
+  const btn = document.getElementById("envaseSalvarBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando envase...";
   }
 
-  if (incompleto > 0) {
-    const cerveja = state.cervejas.find(c => c.nome === prod.cerveja_nome);
-    const { error:incompletoErro } = await sb
-      .from("barris_incompletos")
-      .insert({
-        envase_id:envase.id,
-        producao_id:prod.id,
-        cerveja_id:cerveja ? cerveja.id : null,
-        cerveja_nome:prod.cerveja_nome,
-        lote,
-        origem,
-        capacidade_litros:tamanhoIncompleto,
-        litros_atuais:incompleto,
-        codigo:codigoIncompleto || null,
-        status:"DISPONIVEL",
-        observacao:obs
-      });
-
-    if (incompletoErro) {
-      mostrarErro(
-        "envaseErro",
-        "O envase foi registrado, mas não foi possível disponibilizar o barril incompleto: "
-          + incompletoErro.message
-      );
-      return;
-    }
-  }
-
-  if (calc.litrosBarrisCompletos > 0) {
-    const erroEstoque = await somarEstoqueCerveja(
-      prod.cerveja_nome,
-      origem,
-      q10,q20,q30,q50,
-      obs || "Envase"
-    );
-
-    if (erroEstoque) {
-      mostrarErro("envaseErro", erroEstoque.message);
-      return;
-    }
-
-  }
-
-  if (origem === "PHENOMENA" && (calc.litrosBarrisCompletos + incompleto) > 0) {
-    await sb.from("phenomena_entradas").insert({
-      envase_id:envase.id,
-      cerveja_nome:prod.cerveja_nome,
-      q10,q20,q30,q50,
-      litros:calc.litrosBarrisCompletos + incompleto,
-      observacao:"Envase Phenomena: " + observacaoDetalhada
+  try {
+    const { error } = await sb.rpc("erp_registrar_envase", {
+      p_producao_id:prod.id,
+      p_origem:origem,
+      p_q10:q10,
+      p_q20:q20,
+      p_q30:q30,
+      p_q50:q50,
+      p_litros_incompleto:incompleto,
+      p_capacidade_incompleto:incompleto > 0
+        ? tamanhoIncompleto
+        : null,
+      p_codigo_incompleto:incompleto > 0
+        ? (codigoIncompleto || null)
+        : null,
+      p_litros_bar_proprio:barProprio,
+      p_perda_informada:perdaDigitada,
+      p_finalizar:finalizar,
+      p_observacao:obs || null
     });
+
+    if (error) throw error;
+  } catch(e) {
+    const mensagem = String(
+      e?.message || e || "Não foi possível registrar o envase."
+    );
+    mostrarErro(
+      "envaseErro",
+      mensagem.includes("erp_registrar_envase")
+        ? "A atualização SQL 10 de integridade ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+    return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "Conferir e registrar envase";
+    }
   }
-
-  await sb.from("producoes")
-    .update({ status:statusNovo })
-    .eq("id", prod.id);
-
-  await sb.from("movimentacoes").insert({
-    tipo:"ENVASE",
-    categoria:"CERVEJA",
-    item_nome:prod.cerveja_nome,
-    quantidade:calc.totalEnvaseAtual,
-    unidade:"L",
-    origem,
-    lote,
-    observacao:observacaoDetalhada
-  });
-
-  await sb.from("movimentacoes").insert({
-    tipo:"STATUS LOTE",
-    categoria:"PRODUCAO",
-    item_nome:prod.cerveja_nome,
-    quantidade:0,
-    unidade:"",
-    lote,
-    observacao:`Status alterado para ${rotuloStatusLote(statusNovo)}`
-  });
 
   [
     "envaseQ10","envaseQ20","envaseQ30","envaseQ50",
@@ -881,46 +750,72 @@ async function carregarHistoricoCorrecoes() {
 
 async function gerarBackupJson() {
   const status = document.getElementById("backupStatus");
+  const btn = document.getElementById("backupGerarBtn");
   status.innerText = "Gerando backup...";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Gerando backup completo...";
+  }
 
   const backup = {
-    versao:2,
+    versao:3,
     gerado_em:new Date().toISOString(),
     projeto:"ERP Cervejaria da Lagoa",
+    contagens:{},
     tabelas:{}
   };
 
-  for (const tabela of TABELAS_BACKUP_ERP) {
-    const { data, error } = await sb.from(tabela).select("*");
+  try {
+    for (const tabela of TABELAS_BACKUP_ERP) {
+      status.innerText = `Gerando backup completo: ${tabela}...`;
+      const ordenarPor = tabela === "configuracoes" ? "chave" : "id";
+      const data = await buscarTodasLinhas(tabela, {
+        ordenarPor,
+        desempatarPor:null,
+        verificarContagem:true
+      });
 
-    if (error) {
-      backup.tabelas[tabela] = { erro:error.message };
-    } else {
-      backup.tabelas[tabela] = data || [];
+      backup.tabelas[tabela] = data;
+      backup.contagens[tabela] = data.length;
+    }
+
+    const totalRegistros = Object.values(backup.contagens)
+      .reduce((s,n) => s + Number(n || 0), 0);
+    backup.total_registros = totalRegistros;
+
+    const blob = new Blob(
+      [JSON.stringify(backup, null, 2)],
+      { type:"application/json" }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const nome = "backup-erp-cervejaria-" +
+      new Date().toISOString().slice(0,10) +
+      ".json";
+
+    a.href = url;
+    a.download = nome;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const { error:historicoErro } = await sb.from("backups").insert({
+      descricao:`Backup JSON completo gerado: ${nome} — ${totalRegistros} registro(s)`
+    });
+
+    status.innerText = historicoErro
+      ? `Backup completo gerado: ${nome} (${totalRegistros} registros). Não foi possível salvar apenas o histórico: ${historicoErro.message}`
+      : `Backup completo gerado: ${nome} (${totalRegistros} registros).`;
+  } catch(e) {
+    status.innerText =
+      "Backup cancelado: nenhuma cópia foi baixada porque a leitura não ficou completa. "
+      + e.message;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "💾 Gerar backup JSON";
     }
   }
-
-  const blob = new Blob(
-    [JSON.stringify(backup, null, 2)],
-    { type:"application/json" }
-  );
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const nome = "backup-erp-cervejaria-" +
-    new Date().toISOString().slice(0,10) +
-    ".json";
-
-  a.href = url;
-  a.download = nome;
-  a.click();
-  URL.revokeObjectURL(url);
-
-  await sb.from("backups").insert({
-    descricao:"Backup JSON local gerado: " + nome
-  });
-
-  status.innerText = "Backup gerado: " + nome;
 }
 
 function assinaturaNaturalBackup(tabela, row) {
@@ -974,6 +869,34 @@ async function analisarArquivoBackup() {
     return;
   }
 
+  if (Number(backup.versao || 0) >= 3) {
+    const contagens = backup.contagens;
+    const divergencias = TABELAS_BACKUP_ERP.filter(tabela => (
+      !Array.isArray(backup.tabelas[tabela])
+      || !contagens
+      || Number(contagens[tabela]) !== backup.tabelas[tabela].length
+    ));
+
+    const totalCalculado = TABELAS_BACKUP_ERP.reduce(
+      (s,tabela) => s + (
+        Array.isArray(backup.tabelas[tabela])
+          ? backup.tabelas[tabela].length
+          : 0
+      ),
+      0
+    );
+
+    if (
+      divergencias.length
+      || Number(backup.total_registros) !== totalCalculado
+    ) {
+      previa.innerHTML = `<span class="custoBad">${escapeHtml(
+        "Backup incompleto ou alterado. A restauração foi bloqueada."
+      )}</span>`;
+      return;
+    }
+  }
+
   const detalhes = [];
   let total = 0;
   let novos = 0;
@@ -987,17 +910,20 @@ async function analisarArquivoBackup() {
     tabelasComDados += 1;
     total += rows.length;
 
-    const { data:existentes, error } = await sb
-      .from(tabela)
-      .select("*");
-
-    if (error) {
+    let existentes;
+    try {
+      existentes = await buscarTodasLinhas(tabela, {
+        ordenarPor:tabela === "configuracoes" ? "chave" : "id",
+        desempatarPor:null,
+        verificarContagem:true
+      });
+    } catch(e) {
       detalhes.push({
         tabela,
         total:rows.length,
         novos:0,
         duplicados:0,
-        erro:error.message,
+        erro:e.message,
         rowsNovos:[]
       });
       continue;

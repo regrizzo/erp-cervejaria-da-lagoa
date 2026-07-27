@@ -34,6 +34,10 @@ como origem para novas alterações.
 - controle financeiro e de estoque da Phenomena, incluindo retirada de barril
   incompleto pelo volume real;
 - relatórios, auditoria, correções, backup e restauração.
+- leitura paginada dos históricos e backup com conferência exata da quantidade
+  de registros;
+- gravação atômica das principais operações, evitando estoque alterado sem o
+  histórico correspondente.
 
 ## Publicação do site
 
@@ -67,8 +71,9 @@ Para uma instalação nova:
 2. Execute `06_BARRIL_INCOMPLETO_DISPONIVEL.sql`.
 3. Execute `07_PAGAMENTO_PHENOMENA_FIFO.sql`.
 4. Execute `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql`.
-5. Configure os provedores de autenticação desejados no Supabase.
-6. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
+5. Execute `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`.
+6. Configure os provedores de autenticação desejados no Supabase.
+7. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
    usuários já existentes no momento da instalação em administradores ativos.
 
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
@@ -79,6 +84,12 @@ No banco da Cervejaria da Lagoa que já recebeu o SQL 08, execute
 28 L ao primeiro lançamento da ANARCHY, destinado ao Brazza. A correção
 estrutura o envase antigo como 18 barris completos + 1 incompleto de 28 L,
 mantendo inalterado o estoque atual de 15 barris completos.
+
+Em um banco já atualizado, gere um backup e execute
+`10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql` antes de publicar esta versão do
+site. O SQL adiciona validações de estoque e faz com que entrada de cerveja,
+saída múltipla, produção, envase e dry hopping sejam gravados por inteiro ou
+cancelados por inteiro.
 
 ### Migração dos dados antigos
 
@@ -123,4 +134,5 @@ O acesso visual da interface não substitui as políticas do banco. Mudanças em
 perfis e permissões devem sempre preservar as políticas presentes em
 `01_BANCO_COMPLETO.sql`, `06_BARRIL_INCOMPLETO_DISPONIVEL.sql` e
 `07_PAGAMENTO_PHENOMENA_FIFO.sql` e
-`08_RETIRADA_PHENOMENA_VOLUME_REAL.sql`.
+`08_RETIRADA_PHENOMENA_VOLUME_REAL.sql` e
+`10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`.

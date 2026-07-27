@@ -195,7 +195,6 @@ async function salvarProducao() {
   const fermentoReusoId = document.getElementById("prodFermentoReuso").value;
   const fermentoReusoQtd = Number(document.getElementById("prodFermentoReusoQtd").value || 0);
   const fermentoReuso = state.fermentosReuso.find(f => f.id === fermentoReusoId);
-  const cerveja = state.cervejas.find(c => c.nome === cerveja_nome);
   const insumosParaValidar = [...maltes, ...lupulos];
 
   if (tipoFermentoProducao === "ESTOQUE" && fermentoNome && fermentoQtd > 0) {
@@ -265,71 +264,51 @@ async function salvarProducao() {
     ? fermentoReuso?.codigo || "FERMENTO REUSO"
     : fermentoNome || null;
 
-  const { data:prod, error } = await sb.from("producoes").insert({
-    lote,
-    cerveja_nome,
-    cerveja_id:cerveja ? cerveja.id : null,
-    litros_produzidos,
-    observacao,
-    status:"FERMENTANDO",
-    fermento_tipo:fermentoTipoSalvar,
-    fermento_nome:fermentoNomeSalvar,
-    fermento_reuso_id:tipoFermentoProducao === "REUSO" ? fermentoReusoId : null
-  }).select().single();
-
-  if (error) {
-    mostrarErro("prodErro", error.message);
-    return;
+  const btn = document.getElementById("producaoSalvarBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando produção...";
   }
 
   try {
-    for (const item of insumosParaValidar) {
-      await sb.from("producao_insumos").insert({
-        producao_id:prod.id,
-        lote,
+    const { error } = await sb.rpc("erp_registrar_producao", {
+      p_lote:lote,
+      p_cerveja_nome:cerveja_nome,
+      p_litros_produzidos:litros_produzidos,
+      p_observacao:observacao || null,
+      p_fermento_tipo:fermentoTipoSalvar,
+      p_fermento_nome:fermentoNomeSalvar,
+      p_fermento_reuso_id:tipoFermentoProducao === "REUSO"
+        ? fermentoReusoId
+        : null,
+      p_fermento_reuso_quantidade:tipoFermentoProducao === "REUSO"
+        ? fermentoReusoQtd
+        : 0,
+      p_insumos:insumosParaValidar.map(item => ({
         tipo:item.tipo,
-        insumo_nome:item.nome,
+        nome:item.nome,
         quantidade:item.quantidade,
-        unidade:item.unidade,
-        etapa:"PRODUCAO"
-      });
-
-      await baixarInsumo(
-        item.tipo,
-        item.nome,
-        item.quantidade,
-        item.unidade,
-        `Produção ${cerveja_nome}`,
-        lote,
-        "PRODUCAO"
-      );
-    }
-
-    if (tipoFermentoProducao === "REUSO") {
-      await usarFermentoReusoNaProducao(
-        fermentoReusoId,
-        fermentoReusoQtd,
-        lote,
-        cerveja_nome,
-        prod.id
-      );
-    }
-
-    await sb.from("movimentacoes").insert({
-      tipo:"PRODUCAO",
-      categoria:"CERVEJA",
-      item_nome:cerveja_nome,
-      quantidade:litros_produzidos,
-      unidade:"L",
-      lote,
-      observacao
+        unidade:item.unidade
+      }))
     });
+
+    if (error) throw error;
   } catch(e) {
+    const mensagem = String(
+      e?.message || e || "Não foi possível registrar a produção."
+    );
     mostrarErro(
       "prodErro",
-      "Produção criada, mas houve erro ao baixar insumos: " + e.message
+      mensagem.includes("erp_registrar_producao")
+        ? "A atualização SQL 10 de integridade ainda não foi aplicada no Supabase."
+        : mensagem
     );
     return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "Conferir e salvar produção";
+    }
   }
 
   ["prodLote","prodLitros","prodObs","prodFermentoQtd","prodFermentoReusoQtd"]
@@ -442,54 +421,40 @@ async function salvarDryHop() {
     return;
   }
 
+  const btn = document.getElementById("dryHopSalvarBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando dry hopping...";
+  }
+
   try {
-    for (const item of itens) {
-      await sb.from("dry_hopping").insert({
-        producao_id:prod.id,
-        lote,
-        lupulo_nome:item.nome,
+    const { error } = await sb.rpc("erp_registrar_dry_hopping", {
+      p_producao_id:prod.id,
+      p_itens:itens.map(item => ({
+        nome:item.nome,
         quantidade:item.quantidade,
-        unidade:item.unidade,
-        observacao:obs
-      });
-
-      await sb.from("producao_insumos").insert({
-        producao_id:prod.id,
-        lote,
-        tipo:"LUPULO",
-        insumo_nome:item.nome,
-        quantidade:item.quantidade,
-        unidade:item.unidade,
-        etapa:"DRY_HOPPING"
-      });
-
-      await baixarInsumo(
-        "LUPULO",
-        item.nome,
-        item.quantidade,
-        item.unidade,
-        obs || "Dry hopping",
-        lote,
-        "DRY_HOPPING"
-      );
-    }
-
-    await sb.from("producoes")
-      .update({ status:"DRY_HOPPING" })
-      .eq("id", prod.id);
-
-    await sb.from("movimentacoes").insert({
-      tipo:"STATUS LOTE",
-      categoria:"PRODUCAO",
-      item_nome:prod.cerveja_nome,
-      quantidade:0,
-      unidade:"",
-      lote,
-      observacao:"Status alterado para Dry hopping"
+        unidade:item.unidade
+      })),
+      p_observacao:obs || null
     });
+
+    if (error) throw error;
   } catch(e) {
-    mostrarErro("dryErro", e.message);
+    const mensagem = String(
+      e?.message || e || "Não foi possível registrar o dry hopping."
+    );
+    mostrarErro(
+      "dryErro",
+      mensagem.includes("erp_registrar_dry_hopping")
+        ? "A atualização SQL 10 de integridade ainda não foi aplicada no Supabase."
+        : mensagem
+    );
     return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "Salvar dry hopping";
+    }
   }
 
   document.getElementById("dryObs").value = "";
