@@ -34,7 +34,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=phenomena-pagamento-fifo-20260727" />
+  <link rel="stylesheet" href="./styles.css?v=phenomena-retirada-incompleta-20260727" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -716,7 +716,7 @@
           <p class="muted">Esta retirada baixa a origem PHENOMENA e gera débito financeiro fixo a R$ 3,00 por litro.</p>
 
           <label>Cerveja</label>
-          <select id="phenRetiradaCerveja"></select>
+          <select id="phenRetiradaCerveja" onchange="prepararBarrisIncompletosPhenomena()"></select>
 
           <div class="linha2">
             <div><label>Barris 10L</label><input id="phenRetQ10" type="number" min="0" value="0" oninput="atualizarResumoRetiradaPhenomena()"></div>
@@ -727,6 +727,12 @@
             <div><label>Barris 50L</label><input id="phenRetQ50" type="number" min="0" value="0" oninput="atualizarResumoRetiradaPhenomena()"></div>
           </div>
 
+          <label>Barril incompleto (opcional)</label>
+          <select id="phenRetIncompleto" onchange="atualizarResumoRetiradaPhenomena()">
+            <option value="">Nenhum — somente barris completos</option>
+          </select>
+          <div class="sub" id="phenRetIncompletoAjuda">Selecione uma cerveja para ver os barris incompletos disponíveis.</div>
+
           <label>Responsável</label>
           <input id="phenRetResp" placeholder="Quem retirou">
 
@@ -735,7 +741,7 @@
           <label>Observação</label>
           <textarea id="phenRetObs"></textarea>
 
-          <button data-editar-modulo="phenomena" onclick="salvarRetiradaPhenomena()">Registrar retirada e gerar débito</button>
+          <button id="phenRetSalvarBtn" data-editar-modulo="phenomena" onclick="salvarRetiradaPhenomena()">Registrar retirada e gerar débito</button>
           <div id="phenRetErro" class="erro"></div>
         </div>
 
@@ -1221,9 +1227,9 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=phenomena-pagamento-fifo-20260727"></script>
-  <script src="./js/operacoes.js?v=phenomena-pagamento-fifo-20260727"></script>
-  <script src="./js/administracao.js?v=phenomena-pagamento-fifo-20260727"></script>
-  <script src="./js/acesso.js?v=phenomena-pagamento-fifo-20260727"></script>
+  <script src="./app.js?v=phenomena-retirada-incompleta-20260727"></script>
+  <script src="./js/operacoes.js?v=phenomena-retirada-incompleta-20260727"></script>
+  <script src="./js/administracao.js?v=phenomena-retirada-incompleta-20260727"></script>
+  <script src="./js/acesso.js?v=phenomena-retirada-incompleta-20260727"></script>
 </body>
 </html>

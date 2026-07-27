@@ -31,7 +31,8 @@ como origem para novas alterações.
 - estoque de cervejas, insumos e barris incompletos;
 - clientes, saídas, retornos e códigos de barris;
 - fermento reutilizável;
-- controle financeiro e de estoque da Phenomena;
+- controle financeiro e de estoque da Phenomena, incluindo retirada de barril
+  incompleto pelo volume real;
 - relatórios, auditoria, correções, backup e restauração.
 
 ## Publicação do site
@@ -65,8 +66,9 @@ Para uma instalação nova:
 1. Execute `01_BANCO_COMPLETO.sql` no editor SQL do Supabase.
 2. Execute `06_BARRIL_INCOMPLETO_DISPONIVEL.sql`.
 3. Execute `07_PAGAMENTO_PHENOMENA_FIFO.sql`.
-4. Configure os provedores de autenticação desejados no Supabase.
-5. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
+4. Execute `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql`.
+5. Configure os provedores de autenticação desejados no Supabase.
+6. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
    usuários já existentes no momento da instalação em administradores ativos.
 
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
@@ -114,4 +116,5 @@ depende das políticas de Row Level Security. Nunca coloque uma chave
 O acesso visual da interface não substitui as políticas do banco. Mudanças em
 perfis e permissões devem sempre preservar as políticas presentes em
 `01_BANCO_COMPLETO.sql`, `06_BARRIL_INCOMPLETO_DISPONIVEL.sql` e
-`07_PAGAMENTO_PHENOMENA_FIFO.sql`.
+`07_PAGAMENTO_PHENOMENA_FIFO.sql` e
+`08_RETIRADA_PHENOMENA_VOLUME_REAL.sql`.

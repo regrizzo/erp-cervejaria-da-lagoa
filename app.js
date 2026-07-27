@@ -1,5 +1,5 @@
 
-const APP_BUILD = "phenomena-pagamento-fifo-20260727";
+const APP_BUILD = "phenomena-retirada-incompleta-20260727";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -30,6 +30,7 @@ const state = {
   producoesFermentando: [],
   fermentosReuso: [],
   barrisIncompletos: [],
+  barrisIncompletosPhenomenaRetirada: [],
   debitosPhenomena: [],
   configuracoes: {},
   retornos: [],
@@ -1648,21 +1649,96 @@ async function salvarDescarteFermento() {
   carregarFermentos(true);
 }
 
-function prepararFormRetiradaPhenomena() {
+async function prepararFormRetiradaPhenomena() {
   prepararSelectCervejas("phenRetiradaCerveja");
+  await prepararBarrisIncompletosPhenomena();
+  atualizarResumoRetiradaPhenomena();
 }
 
+function calcularRetiradaPhenomena(q10,q20,q30,q50,barrilIncompleto=null,valorLitro=3) {
+  const litrosCompletos = litrosBarris(q10,q20,q30,q50);
+  const litrosIncompleto = Math.max(0, Number(barrilIncompleto?.litros_atuais || 0));
+  const litros = Number((litrosCompletos + litrosIncompleto).toFixed(3));
+  const valor = Number((litros * Number(valorLitro || 0)).toFixed(2));
+
+  return { litrosCompletos, litrosIncompleto, litros, valor };
+}
+
+function obterBarrilIncompletoPhenomenaSelecionado() {
+  const id = document.getElementById("phenRetIncompleto")?.value || "";
+  return (state.barrisIncompletosPhenomenaRetirada || [])
+    .find(b => String(b.id) === String(id)) || null;
+}
+
+async function prepararBarrisIncompletosPhenomena() {
+  const select = document.getElementById("phenRetIncompleto");
+  const ajuda = document.getElementById("phenRetIncompletoAjuda");
+  const cervejaNome = document.getElementById("phenRetiradaCerveja")?.value || "";
+  if (!select) return;
+
+  select.innerHTML = "";
+  const opcaoNenhum = document.createElement("option");
+  opcaoNenhum.value = "";
+  opcaoNenhum.textContent = "Nenhum — somente barris completos";
+  select.appendChild(opcaoNenhum);
+  select.disabled = !cervejaNome;
+  state.barrisIncompletosPhenomenaRetirada = [];
+
+  if (!cervejaNome) {
+    if (ajuda) ajuda.innerText = "Selecione uma cerveja para ver os barris incompletos disponíveis.";
+    atualizarResumoRetiradaPhenomena();
+    return;
+  }
+
+  const { data, error } = await sb.from("barris_incompletos")
+    .select("*")
+    .eq("cerveja_nome", cervejaNome)
+    .eq("origem","PHENOMENA")
+    .eq("status","DISPONIVEL")
+    .order("criado_em", { ascending:true });
+
+  if (error) {
+    select.disabled = true;
+    if (ajuda) ajuda.innerText = "Não foi possível consultar os barris incompletos.";
+    mostrarErro("phenRetErro", error.message);
+    atualizarResumoRetiradaPhenomena();
+    return;
+  }
+
+  state.barrisIncompletosPhenomenaRetirada = data || [];
+  (data || []).forEach(b => {
+    const rotulo = `${fmt(b.litros_atuais,2)}/${fmt(b.capacidade_litros)} L`
+      + `${b.codigo ? ` • código ${b.codigo}` : " • sem código"}`
+      + `${b.lote ? ` • lote ${b.lote}` : ""}`;
+    const opcao = document.createElement("option");
+    opcao.value = b.id;
+    opcao.textContent = rotulo;
+    select.appendChild(opcao);
+  });
+
+  select.disabled = false;
+  if (ajuda) {
+    ajuda.innerText = (data || []).length
+      ? "Ao selecionar, a cobrança usa os litros reais do barril."
+      : "Nenhum barril incompleto disponível para esta cerveja.";
+  }
+  atualizarResumoRetiradaPhenomena();
+}
 
 function atualizarResumoRetiradaPhenomena() {
   const q10 = Number(document.getElementById("phenRetQ10")?.value || 0);
   const q20 = Number(document.getElementById("phenRetQ20")?.value || 0);
   const q30 = Number(document.getElementById("phenRetQ30")?.value || 0);
   const q50 = Number(document.getElementById("phenRetQ50")?.value || 0);
-  const litros = litrosBarris(q10,q20,q30,q50);
-  const valorLitro = 3;
-  const valor = litros * valorLitro;
+  const incompleto = obterBarrilIncompletoPhenomenaSelecionado();
+  const valorLitro = getConfigNumero("valor_litro_phenomena", 3);
+  const calculo = calcularRetiradaPhenomena(q10,q20,q30,q50,incompleto,valorLitro);
   const el = document.getElementById("phenRetResumo");
-  if (el) el.innerText = `Total: ${fmt(litros)} L • Débito: ${fmtMoeda(valor)} • Regra fixa: R$ 3,00/L`;
+  if (el) {
+    el.innerText = `Total: ${fmt(calculo.litros,2)} L • Débito: ${fmtMoeda(calculo.valor)}`
+      + `${incompleto ? ` • Incompleto: ${fmt(calculo.litrosIncompleto,2)} L reais` : ""}`
+      + ` • Regra: ${fmtMoeda(valorLitro)}/L`;
+  }
 }
 
 
@@ -1879,109 +1955,78 @@ async function salvarRetiradaPhenomena() {
   const q20 = Number(document.getElementById("phenRetQ20").value || 0);
   const q30 = Number(document.getElementById("phenRetQ30").value || 0);
   const q50 = Number(document.getElementById("phenRetQ50").value || 0);
+  const incompleto = obterBarrilIncompletoPhenomenaSelecionado();
   const responsavel = document.getElementById("phenRetResp").value.trim();
   const obs = document.getElementById("phenRetObs").value.trim();
+  const btn = document.getElementById("phenRetSalvarBtn");
+  const quantidades = [q10,q20,q30,q50];
 
-  if (!cerveja_nome || somaBarris(q10,q20,q30,q50) <= 0) {
+  if (quantidades.some(q => !Number.isInteger(q) || q < 0)) {
+    mostrarErro("phenRetErro", "As quantidades de barris completos devem ser números inteiros maiores ou iguais a zero.");
+    return;
+  }
+
+  if (!cerveja_nome || (somaBarris(q10,q20,q30,q50) <= 0 && !incompleto)) {
     mostrarErro("phenRetErro", "Selecione a cerveja e informe os barris.");
     return;
   }
 
-  const { data: rows, error: buscaErro } = await sb.from("estoque_cerveja")
-    .select("*")
-    .eq("cerveja_nome", cerveja_nome)
-    .eq("origem","PHENOMENA")
-    .limit(1);
-
-  if (buscaErro) {
-    mostrarErro("phenRetErro", buscaErro.message);
-    return;
-  }
-
-  const atual = rows && rows[0] ? rows[0] : { q10:0,q20:0,q30:0,q50:0 };
-  const faltas = [];
-  if (Number(atual.q10 || 0) < q10) faltas.push(`10L: solicitado ${q10}, disponível ${atual.q10 || 0}`);
-  if (Number(atual.q20 || 0) < q20) faltas.push(`20L: solicitado ${q20}, disponível ${atual.q20 || 0}`);
-  if (Number(atual.q30 || 0) < q30) faltas.push(`30L: solicitado ${q30}, disponível ${atual.q30 || 0}`);
-  if (Number(atual.q50 || 0) < q50) faltas.push(`50L: solicitado ${q50}, disponível ${atual.q50 || 0}`);
-
-  if (faltas.length) {
-    mostrarErro("phenRetErro", "Estoque Phenomena insuficiente:\n" + faltas.join("\n"));
-    return;
-  }
-
-  const nq10 = Number(atual.q10 || 0) - q10;
-  const nq20 = Number(atual.q20 || 0) - q20;
-  const nq30 = Number(atual.q30 || 0) - q30;
-  const nq50 = Number(atual.q50 || 0) - q50;
-  const litros = litrosBarris(q10,q20,q30,q50);
-  const valorLitro = 3;
-  const valorTotal = litros * valorLitro;
-  const cerveja = state.cervejas.find(c => c.nome === cerveja_nome);
-
-  const resumo = `Retirada Phenomena\n\nCerveja: ${cerveja_nome}\nLitros: ${fmt(litros)} L\nValor: ${fmtMoeda(valorTotal)}\n\nConfirmar retirada e gerar débito?`;
+  const valorLitro = getConfigNumero("valor_litro_phenomena", 3);
+  const calculo = calcularRetiradaPhenomena(q10,q20,q30,q50,incompleto,valorLitro);
+  const resumo = `Retirada Phenomena\n\nCerveja: ${cerveja_nome}`
+    + `\nLitros cobrados: ${fmt(calculo.litros,2)} L`
+    + `${incompleto ? `\nBarril incompleto: ${fmt(incompleto.litros_atuais,2)}/${fmt(incompleto.capacidade_litros)} L` : ""}`
+    + `\nValor: ${fmtMoeda(calculo.valor)}\n\nConfirmar retirada e gerar débito?`;
   if (!confirm(resumo)) return;
 
-  const { error: estErro } = await sb.from("estoque_cerveja").upsert({
-    cerveja_id: cerveja ? cerveja.id : null,
-    cerveja_nome,
-    origem:"PHENOMENA",
-    q10:nq10,q20:nq20,q30:nq30,q50:nq50,
-    litros:litrosBarris(nq10,nq20,nq30,nq50),
-    atualizado_em:new Date().toISOString()
-  }, { onConflict:"cerveja_nome,origem" });
-
-  if (estErro) {
-    mostrarErro("phenRetErro", estErro.message);
-    return;
+  const textoAnterior = btn?.innerText || "Registrar retirada e gerar débito";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando...";
   }
 
-  const { error: debErro } = await sb.from("phenomena_debitos").insert({
-    cerveja_nome,
-    q10,q20,q30,q50,
-    litros,
-    valor_litro: valorLitro,
-    valor_total: valorTotal,
-    valor_pago: 0,
-    status:"ABERTO",
-    responsavel,
-    observacao: obs
-  });
+  try {
+    const { data, error } = await sb.rpc("erp_registrar_retirada_phenomena", {
+      p_cerveja_nome: cerveja_nome,
+      p_q10:q10,
+      p_q20:q20,
+      p_q30:q30,
+      p_q50:q50,
+      p_barril_incompleto_id:incompleto?.id || null,
+      p_responsavel:responsavel,
+      p_observacao:obs
+    });
 
-  if (debErro) {
-    mostrarErro("phenRetErro", "A retirada baixou o estoque, mas houve erro ao gerar débito: " + debErro.message);
-    return;
+    if (error) throw error;
+
+    ["phenRetQ10","phenRetQ20","phenRetQ30","phenRetQ50"].forEach(id => document.getElementById(id).value = "0");
+    ["phenRetResp","phenRetObs"].forEach(id => document.getElementById(id).value = "");
+    const selectIncompleto = document.getElementById("phenRetIncompleto");
+    if (selectIncompleto) selectIncompleto.value = "";
+
+    invalidar("phenomena","estoque","inicio","auditoria");
+    alert(
+      `Retirada de ${fmt(data?.litros || calculo.litros,2)} L registrada.\n`
+      + `Débito gerado: ${fmtMoeda(data?.valor_total || calculo.valor)}.`
+    );
+    await carregarPhenomena(true);
+    await prepararBarrisIncompletosPhenomena();
+    await carregarInicio(true);
+  } catch(e) {
+    const mensagem = String(e?.message || e || "Não foi possível registrar a retirada.");
+    mostrarErro(
+      "phenRetErro",
+      mensagem.includes("erp_registrar_retirada_phenomena")
+        ? "A atualização SQL da retirada por volume real ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = textoAnterior;
+    }
+    atualizarResumoRetiradaPhenomena();
   }
-
-  await sb.from("movimentacoes").insert({
-    tipo:"RETIRADA PHENOMENA",
-    categoria:"CERVEJA",
-    item_nome:cerveja_nome,
-    quantidade:-Math.abs(litros),
-    unidade:"L",
-    origem:"PHENOMENA",
-    observacao:`Débito gerado: ${fmtMoeda(valorTotal)}${obs ? " — " + obs : ""}`,
-    responsavel
-  });
-
-  await sb.from("movimentacoes").insert({
-    tipo:"DÉBITO PHENOMENA",
-    categoria:"FINANCEIRO",
-    item_nome:cerveja_nome,
-    quantidade:valorTotal,
-    unidade:"R$",
-    origem:"PHENOMENA",
-    observacao:obs,
-    responsavel
-  });
-
-  ["phenRetQ10","phenRetQ20","phenRetQ30","phenRetQ50"].forEach(id => document.getElementById(id).value = "0");
-  ["phenRetResp","phenRetObs"].forEach(id => document.getElementById(id).value = "");
-  atualizarResumoRetiradaPhenomena();
-  invalidar("phenomena","estoque","inicio","auditoria");
-  alert("Retirada Phenomena registrada e débito gerado.");
-  carregarPhenomena(true);
-  carregarInicio(true);
 }
 
 async function simularBaixaCervejaVirtual(cerveja_nome, q10, q20, q30, q50, estoqueVirtual) {
