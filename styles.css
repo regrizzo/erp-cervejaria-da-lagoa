@@ -866,3 +866,53 @@ h3 { margin:18px 0 10px; }
     height: 34px;
   }
 }
+
+/* Saídas: impede códigos e descrições longas de alargarem a tela no celular. */
+#telaSaidas,
+#telaSaidas .formBox,
+#telaSaidas .saidaItem,
+#telaSaidas .lista,
+#telaSaidas .item,
+#telaSaidas .item > div,
+#telaSaidas .miniSection,
+#telaSaidas .codigosBox,
+#telaSaidas .codigoGrid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#telaSaidas .linha2,
+#telaSaidas .gridCards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#telaSaidas .item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+#telaSaidas .sub,
+#telaSaidas .miniSection,
+#telaSaidas .codigosBox,
+#telaSaidas .codigoTag {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+#telaSaidas .codigoTag {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 380px) {
+  #telaSaidas .linha2 {
+    gap: 7px;
+  }
+
+  #telaSaidas .saidaItem,
+  #telaSaidas .formBox {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
