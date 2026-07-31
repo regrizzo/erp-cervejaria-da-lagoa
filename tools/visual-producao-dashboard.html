@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teste visual — produção e dashboard</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div id="app" style="display:block">
+    <main class="container">
+      <section class="tela active">
+        <div class="sectionHeader"><h2>Produção</h2></div>
+
+        <div class="actionGrid">
+          <button class="btnMain">+ Nova Produção</button>
+          <button class="btnSecondary">📏 Informar litros</button>
+          <button class="btnSecondary">🌿 Dry Hopping</button>
+          <button class="btnSuccess">🍺 Envase</button>
+          <button class="btnSecondary">🧫 Fermentos</button>
+        </div>
+
+        <div class="formBox" style="display:block">
+          <h3>Nova produção</h3>
+          <label>Lote</label>
+          <input value="31">
+          <label>Cerveja</label>
+          <select><option>ANARCHY</option></select>
+          <label>Litros produzidos (opcional nesta etapa)</label>
+          <input placeholder="Pode informar depois">
+          <div class="sub">Se deixar em branco, os insumos serão baixados agora e o volume ficará pendente para informar depois.</div>
+          <div class="infoBox">Maltes usados</div>
+          <div class="linhaInsumo">
+            <select><option>Malte Pilsen</option></select>
+            <input value="150">
+            <span>KG</span>
+          </div>
+          <div class="infoBox">Lúpulos usados na produção</div>
+          <div class="linhaInsumo">
+            <select><option>Citra</option></select>
+            <input value="1200">
+            <span>G</span>
+          </div>
+          <label>Tipo de fermento</label>
+          <select><option>Fermento novo / estoque normal</option></select>
+          <div class="infoBox">
+            <strong>Resumo da produção</strong>
+            <div class="envaseSaldoGrid">
+              <div><span>Cerveja</span><strong>ANARCHY</strong></div>
+              <div><span>Lote</span><strong>31</strong></div>
+              <div><span>Volume</span><strong>Pendente</strong></div>
+              <div><span>Insumos</span><strong>1 malte • 1 lúpulo</strong></div>
+            </div>
+          </div>
+          <button class="btnMobilePrimary">Salvar insumos e iniciar produção</button>
+        </div>
+
+        <div class="formBox" style="display:block">
+          <h3>Informar litros produzidos</h3>
+          <label>Produção com volume pendente</label>
+          <select><option>ANARCHY — lote 31 (30/07/2026)</option></select>
+          <label>Litros realmente produzidos</label>
+          <input value="780">
+          <label>Observação (opcional)</label>
+          <textarea></textarea>
+          <div class="infoBox">Esta etapa não baixa os insumos novamente. Ela apenas completa a produção já cadastrada.</div>
+          <button class="btnMobilePrimary">Registrar volume produzido</button>
+        </div>
+
+        <h2 id="painel" style="margin-top:24px">Painel ampliado</h2>
+        <div class="dashGrid">
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Estoque por cerveja</h3>
+              <span class="miniBadge">20 itens</span>
+            </div>
+            <div id="mockEstoque" class="barChart"></div>
+          </div>
+          <div class="dashBox">
+            <div class="dashTitle">
+              <h3>Saídas por cerveja</h3>
+              <span class="miniBadge">Até 20 cervejas</span>
+            </div>
+            <div id="mockSaidas" class="barChart"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const linhas = Array.from({ length:20 }, (_, i) => `
+      <div class="barRow">
+        <div class="barLabel">Cerveja ${String(i + 1).padStart(2, "0")}</div>
+        <div class="barTrack"><div class="barFill" style="width:${100 - i * 3}%"></div></div>
+        <div class="barValue">${600 - i * 20} L</div>
+      </div>
+    `).join("");
+    document.getElementById("mockEstoque").innerHTML = linhas;
+    document.getElementById("mockSaidas").innerHTML = linhas;
+  </script>
+</body>
+</html>

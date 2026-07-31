@@ -60,7 +60,6 @@ for (const rpc of [
 }
 
 for (const rpc of [
-  "erp_registrar_producao",
   "erp_registrar_dry_hopping"
 ]) {
   exigir(
@@ -68,6 +67,11 @@ for (const rpc of [
     `a interface operacional não chama ${rpc}`
   );
 }
+
+exigir(
+  operacoes.includes('sb.rpc("erp_iniciar_producao"'),
+  "a interface operacional não chama a produção em duas etapas"
+);
 
 exigir(
   (sql.match(/\bfor\s+update\b/gi) || []).length >= 5,

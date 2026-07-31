@@ -458,6 +458,7 @@ h3 { margin:18px 0 10px; }
   background:#e2e8f0;
   color:#334155;
 }
+.status-insumos { background:#ffedd5; color:#9a3412; }
 .status-fermentando { background:#dbeafe; color:#1d4ed8; }
 .status-dry { background:#dcfce7; color:#166534; }
 .status-pronto { background:#fef3c7; color:#92400e; }

@@ -34,7 +34,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=saidas-mobile-20260729" />
+  <link rel="stylesheet" href="./styles.css?v=producao-duas-etapas-dashboard-20260730" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -199,7 +199,7 @@
           <div class="dashBox">
             <div class="dashTitle">
               <h3>Saídas por cerveja</h3>
-              <span class="miniBadge">Últimas saídas</span>
+              <span id="dashTotalSaidasCervejas" class="miniBadge">Até 20 cervejas</span>
             </div>
             <div id="graficoSaidasCerveja" class="barChart"><div class="emptyChart">Carregando gráfico...</div></div>
           </div>
@@ -225,7 +225,7 @@
           <div class="dashBox">
             <div class="dashTitle">
               <h3>Barris em clientes</h3>
-              <span class="miniBadge">Acompanhamento</span>
+              <span class="miniBadge">Até 16 clientes</span>
             </div>
             <div id="dashboardBarrisClientes" class="lista compactList"><div class="item"><span class="sub">Carregando...</span></div></div>
           </div>
@@ -233,7 +233,7 @@
           <div class="dashBox">
             <div class="dashTitle">
               <h3>Lotes fermentando</h3>
-              <span class="miniBadge">Produção</span>
+              <span class="miniBadge">Até 16 lotes</span>
             </div>
             <div id="dashboardLotesFermentando" class="lista compactList"><div class="item"><span class="sub">Carregando...</span></div></div>
           </div>
@@ -241,7 +241,7 @@
           <div class="dashBox">
             <div class="dashTitle">
               <h3>Últimas movimentações</h3>
-              <span class="miniBadge">Histórico</span>
+              <span class="miniBadge">Últimas 20</span>
             </div>
             <div id="inicioMovimentacoes" class="lista compactList"><div class="item"><span class="sub">Carregando...</span></div></div>
           </div>
@@ -255,6 +255,7 @@
 
         <div class="actionGrid">
           <button class="btnMain" data-editar-modulo="producao" onclick="toggleForm('formProducao')">+ Nova Produção</button>
+          <button class="btnSecondary" data-editar-modulo="producao" onclick="toggleForm('formVolumeProducao')">📏 Informar litros</button>
           <button class="btnSecondary" data-editar-modulo="producao" onclick="toggleForm('formDryHop')">🌿 Dry Hopping</button>
           <button class="btnSuccess" data-editar-modulo="producao" onclick="toggleForm('formEnvase')">🍺 Envase</button>
           <button class="btnSecondary" onclick="mostrarTela('fermentos')">🧫 Fermentos</button>
@@ -268,8 +269,9 @@
           <label>Cerveja</label>
           <select id="prodCerveja" onchange="atualizarResumoProducao()"></select>
 
-          <label>Litros produzidos</label>
-          <input id="prodLitros" type="number" min="0" step="0.01" oninput="atualizarResumoProducao()">
+          <label>Litros produzidos (opcional nesta etapa)</label>
+          <input id="prodLitros" type="number" min="0" step="0.01" placeholder="Pode informar depois" oninput="atualizarResumoProducao()">
+          <div class="sub">Se deixar em branco, os insumos serão baixados agora e o volume ficará pendente para informar depois.</div>
 
           <div class="infoBox">Maltes usados</div>
           <div id="prodMaltes"></div>
@@ -306,8 +308,28 @@
 
           <div id="prodResumo" class="infoBox">Preencha os dados para conferir a produção.</div>
 
-          <button id="producaoSalvarBtn" class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarProducao()">Conferir e salvar produção</button>
+          <button id="producaoSalvarBtn" class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarProducao()">Salvar insumos e iniciar produção</button>
           <div id="prodErro" class="erro"></div>
+        </div>
+
+        <div id="formVolumeProducao" class="formBox" data-proteger="1" style="display:none;">
+          <h3>Informar litros produzidos</h3>
+
+          <label>Produção com volume pendente</label>
+          <select id="volumeProducaoLote"></select>
+
+          <label>Litros realmente produzidos</label>
+          <input id="volumeProducaoLitros" type="number" min="0.01" step="0.01" placeholder="Ex: 780">
+
+          <label>Observação (opcional)</label>
+          <textarea id="volumeProducaoObs" placeholder="Ex: volume medido após transferência"></textarea>
+
+          <div class="infoBox">
+            Esta etapa não baixa os insumos novamente. Ela apenas completa a produção já cadastrada.
+          </div>
+
+          <button id="volumeProducaoSalvarBtn" class="btnMobilePrimary" data-editar-modulo="producao" onclick="salvarVolumeProducao()">Registrar volume produzido</button>
+          <div id="volumeProducaoErro" class="erro"></div>
         </div>
 
         <div id="formDryHop" class="formBox" data-proteger="1" style="display:none;">
@@ -1227,9 +1249,9 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=saidas-mobile-20260729"></script>
-  <script src="./js/operacoes.js?v=saidas-mobile-20260729"></script>
-  <script src="./js/administracao.js?v=saidas-mobile-20260729"></script>
-  <script src="./js/acesso.js?v=saidas-mobile-20260729"></script>
+  <script src="./app.js?v=producao-duas-etapas-dashboard-20260730"></script>
+  <script src="./js/operacoes.js?v=producao-duas-etapas-dashboard-20260730"></script>
+  <script src="./js/administracao.js?v=producao-duas-etapas-dashboard-20260730"></script>
+  <script src="./js/acesso.js?v=producao-duas-etapas-dashboard-20260730"></script>
 </body>
 </html>

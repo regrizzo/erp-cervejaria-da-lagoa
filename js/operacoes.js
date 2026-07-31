@@ -3,6 +3,7 @@
    ========================================================== */
 
 const STATUS_LOTE_ATIVOS_OP = [
+  "INSUMOS_REGISTRADOS",
   "FERMENTANDO",
   "DRY_HOPPING",
   "PRONTO_ENVASE",
@@ -10,6 +11,7 @@ const STATUS_LOTE_ATIVOS_OP = [
 ];
 
 const STATUS_LOTE_OPCOES = [
+  "INSUMOS_REGISTRADOS",
   "FERMENTANDO",
   "DRY_HOPPING",
   "PRONTO_ENVASE",
@@ -20,6 +22,7 @@ const STATUS_LOTE_OPCOES = [
 
 function rotuloStatusLote(status) {
   const mapa = {
+    INSUMOS_REGISTRADOS:"Volume pendente",
     FERMENTANDO:"Em fermentação",
     DRY_HOPPING:"Dry hopping",
     PRONTO_ENVASE:"Pronto para envase",
@@ -32,6 +35,7 @@ function rotuloStatusLote(status) {
 
 function classeStatusLote(status) {
   const mapa = {
+    INSUMOS_REGISTRADOS:"status-insumos",
     FERMENTANDO:"status-fermentando",
     DRY_HOPPING:"status-dry",
     PRONTO_ENVASE:"status-pronto",
@@ -101,6 +105,7 @@ function toggleForm(id) {
   }
 
   if (id === "formProducao") prepararFormProducao();
+  if (id === "formVolumeProducao") prepararFormVolumeProducao();
   if (id === "formDryHop") prepararFormDryHop();
   if (id === "formEnvase") prepararFormEnvase();
   if (id === "formEntradaCerveja") prepararFormEntradaCerveja();
@@ -163,7 +168,7 @@ function atualizarResumoProducao() {
     <div class="envaseSaldoGrid">
       <div><span>Cerveja</span><strong>${escapeHtml(cerveja)}</strong></div>
       <div><span>Lote</span><strong>${escapeHtml(lote)}</strong></div>
-      <div><span>Volume</span><strong>${fmt(litros)} L</strong></div>
+      <div><span>Volume</span><strong>${litros > 0 ? `${fmt(litros)} L` : "Pendente"}</strong></div>
       <div><span>Insumos</span><strong>${maltes.length} malte(s) • ${lupulos.length} lúpulo(s)</strong></div>
     </div>
     <div class="sub" style="margin-top:7px;">Fermento: ${escapeHtml(fermento)}</div>
@@ -178,8 +183,8 @@ async function salvarProducao() {
   const litros_produzidos = Number(document.getElementById("prodLitros").value || 0);
   const observacao = document.getElementById("prodObs").value.trim();
 
-  if (!lote || !cerveja_nome || litros_produzidos <= 0) {
-    mostrarErro("prodErro", "Informe lote, cerveja e litros produzidos.");
+  if (!lote || !cerveja_nome || litros_produzidos < 0) {
+    mostrarErro("prodErro", "Informe lote e cerveja. O volume não pode ser negativo.");
     return;
   }
 
@@ -249,7 +254,7 @@ async function salvarProducao() {
 
   let resumo = `CONFIRMAR PRODUÇÃO\n\n`;
   resumo += `${cerveja_nome} — lote ${lote}\n`;
-  resumo += `Volume: ${fmt(litros_produzidos)} L\n`;
+  resumo += `Volume: ${litros_produzidos > 0 ? `${fmt(litros_produzidos)} L` : "pendente — informar depois"}\n`;
   resumo += `Maltes: ${maltes.length ? maltes.map(i => `${i.nome} ${fmt(i.quantidade,3)} ${i.unidade}`).join(", ") : "nenhum"}\n`;
   resumo += `Lúpulos: ${lupulos.length ? lupulos.map(i => `${i.nome} ${fmt(i.quantidade,3)} ${i.unidade}`).join(", ") : "nenhum"}\n`;
   resumo += `Fermento: ${fermentoResumo}\n`;
@@ -271,7 +276,7 @@ async function salvarProducao() {
   }
 
   try {
-    const { error } = await sb.rpc("erp_registrar_producao", {
+    const { error } = await sb.rpc("erp_iniciar_producao", {
       p_lote:lote,
       p_cerveja_nome:cerveja_nome,
       p_litros_produzidos:litros_produzidos,
@@ -299,15 +304,15 @@ async function salvarProducao() {
     );
     mostrarErro(
       "prodErro",
-      mensagem.includes("erp_registrar_producao")
-        ? "A atualização SQL 10 de integridade ainda não foi aplicada no Supabase."
+      mensagem.includes("erp_iniciar_producao")
+        ? "A atualização SQL 11 de produção em duas etapas ainda não foi aplicada no Supabase."
         : mensagem
     );
     return;
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerText = "Conferir e salvar produção";
+      btn.innerText = "Salvar insumos e iniciar produção";
     }
   }
 
@@ -330,8 +335,127 @@ async function salvarProducao() {
     "lotes","painelDia","auditoria"
   );
 
-  alert("Produção salva e insumos baixados.");
+  alert(
+    litros_produzidos > 0
+      ? "Produção salva, volume registrado e insumos baixados."
+      : "Insumos baixados. O volume desta produção ficou pendente."
+  );
   carregarProducao(true);
+  carregarInicio(true);
+}
+
+async function prepararFormVolumeProducao(producaoId="") {
+  await carregarProducoesFermentando(true);
+
+  const sel = document.getElementById("volumeProducaoLote");
+  if (!sel) return;
+
+  const pendentes = state.producoesFermentando.filter(volumeProducaoPendente);
+  sel.innerHTML = '<option value="">Selecionar produção...</option>';
+
+  pendentes.forEach(p => {
+    const op = document.createElement("option");
+    op.value = p.id;
+    op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${dataBR(p.data_producao)})`;
+    sel.appendChild(op);
+  });
+
+  if (producaoId && pendentes.some(p => p.id === producaoId)) {
+    sel.value = producaoId;
+  }
+
+  mostrarErro(
+    "volumeProducaoErro",
+    pendentes.length ? "" : "Não há produção com volume pendente."
+  );
+  instalarProtecaoFormularios();
+}
+
+async function abrirVolumeDaProducao(id) {
+  mostrarTela("producao");
+
+  const form = document.getElementById("formVolumeProducao");
+  document.querySelectorAll(".formBox").forEach(f => {
+    f.style.display = "none";
+  });
+  form.style.display = "block";
+
+  await prepararFormVolumeProducao(id);
+  form.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+async function salvarVolumeProducao() {
+  mostrarErro("volumeProducaoErro", "");
+
+  const producaoId = document.getElementById("volumeProducaoLote")?.value;
+  const litros = Number(document.getElementById("volumeProducaoLitros")?.value || 0);
+  const observacao = document.getElementById("volumeProducaoObs")?.value.trim() || "";
+
+  if (!producaoId || litros <= 0) {
+    mostrarErro(
+      "volumeProducaoErro",
+      "Selecione a produção e informe um volume maior que zero."
+    );
+    return;
+  }
+
+  const producao = state.producoesFermentando.find(p => p.id === producaoId);
+  if (!producao || !volumeProducaoPendente(producao)) {
+    mostrarErro(
+      "volumeProducaoErro",
+      "Esta produção já possui volume informado. Atualize a página."
+    );
+    return;
+  }
+
+  if (!confirm(
+    `CONFIRMAR VOLUME PRODUZIDO\n\n${producao.cerveja_nome} — lote ${producao.lote}\nVolume: ${fmt(litros)} L\n\nOs insumos não serão baixados novamente.`
+  )) return;
+
+  const btn = document.getElementById("volumeProducaoSalvarBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando volume...";
+  }
+
+  try {
+    const { error } = await sb.rpc("erp_informar_volume_producao", {
+      p_producao_id:producaoId,
+      p_litros_produzidos:litros,
+      p_observacao:observacao || null
+    });
+
+    if (error) throw error;
+  } catch(e) {
+    const mensagem = String(
+      e?.message || e || "Não foi possível registrar o volume."
+    );
+    mostrarErro(
+      "volumeProducaoErro",
+      mensagem.includes("erp_informar_volume_producao")
+        ? "A atualização SQL 11 de produção em duas etapas ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+    return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "Registrar volume produzido";
+    }
+  }
+
+  document.getElementById("volumeProducaoLitros").value = "";
+  document.getElementById("volumeProducaoObs").value = "";
+  marcarFormularioLimpo("formVolumeProducao");
+
+  invalidar(
+    "producao","producoesFermentando","inicio",
+    "lotes","painelDia","auditoria"
+  );
+
+  alert("Volume registrado. A produção agora está liberada para as próximas etapas.");
+  await carregarProducao(true);
+  await prepararFormVolumeProducao();
   carregarInicio(true);
 }
 
@@ -360,6 +484,14 @@ async function alterarStatusLote(id, novoStatus) {
   );
 
   if (!lote) return;
+
+  if (
+    volumeProducaoPendente(lote)
+    && novoStatus !== "INSUMOS_REGISTRADOS"
+  ) {
+    alert("Informe os litros produzidos antes de alterar o status deste lote.");
+    return;
+  }
 
   if (novoStatus === "FINALIZADO") {
     const ok = confirm(
@@ -479,6 +611,7 @@ function renderProducoes() {
     : '<div class="item"><span class="sub">Nenhuma cerveja em produção.</span></div>';
 
   state.producoesFermentando.forEach(p => {
+    const volumePendente = volumeProducaoPendente(p);
     const dias = Math.max(
       0,
       Math.floor(
@@ -490,15 +623,20 @@ function renderProducoes() {
       <div class="item searchable">
         <div>
           <strong>${escapeHtml(p.cerveja_nome)} — lote ${escapeHtml(p.lote)}</strong>
-          <div class="sub">${fmt(p.litros_produzidos)} L • Produzida em ${dataBR(p.data_producao)} • ${dias} dia(s)</div>
+          <div class="sub">${rotuloVolumeProducao(p)} • Iniciada em ${dataBR(p.data_producao)} • ${dias} dia(s)</div>
           <div class="loteStatusActions">
             ${
-              ["FERMENTANDO","DRY_HOPPING"].includes(p.status)
+              volumePendente
+                ? `<button class="btnTiny btnEdit" onclick="abrirVolumeDaProducao('${p.id}')">Informar litros produzidos</button>`
+                : ""
+            }
+            ${
+              !volumePendente && ["FERMENTANDO","DRY_HOPPING"].includes(p.status)
                 ? `<button class="btnTiny btnEdit" onclick="alterarStatusLote('${p.id}','PRONTO_ENVASE')">Pronto para envase</button>`
                 : ""
             }
             ${
-              ["PRONTO_ENVASE","PARCIALMENTE_ENVASADO"].includes(p.status)
+              !volumePendente && ["PRONTO_ENVASE","PARCIALMENTE_ENVASADO"].includes(p.status)
                 ? `<button class="btnTiny btnEdit" onclick="abrirEnvaseDoLote('${p.id}')">Registrar envase</button>`
                 : ""
             }
@@ -776,6 +914,7 @@ function renderListaLotes() {
     : '<div class="item"><span class="sub">Nenhum lote encontrado.</span></div>';
 
   lista.forEach(l => {
+    const volumePendente = volumeProducaoPendente(l);
     const dias = l.data_producao
       ? Math.max(
           0,
@@ -789,11 +928,16 @@ function renderListaLotes() {
       <div class="item searchable">
         <div>
           <strong>${escapeHtml(l.cerveja_nome)} — lote ${escapeHtml(l.lote)}</strong>
-          <div class="sub">${fmt(l.litros_produzidos)} L • ${dataBR(l.data_producao)} • ${dias} dia(s)</div>
+          <div class="sub">${rotuloVolumeProducao(l)} • ${dataBR(l.data_producao)} • ${dias} dia(s)</div>
           <div class="loteStatusActions">
             <button class="btnTiny btnEdit" onclick="abrirFichaLote('${l.id}')">Ver ficha e linha do tempo</button>
             ${
-              ["PRONTO_ENVASE","PARCIALMENTE_ENVASADO"].includes(l.status)
+              volumePendente
+                ? `<button class="btnTiny" onclick="abrirVolumeDaProducao('${l.id}')">Informar litros</button>`
+                : ""
+            }
+            ${
+              !volumePendente && ["PRONTO_ENVASE","PARCIALMENTE_ENVASADO"].includes(l.status)
                 ? `<button class="btnTiny" onclick="abrirEnvaseDoLote('${l.id}')">Registrar envase</button>`
                 : ""
             }
@@ -807,13 +951,26 @@ function renderListaLotes() {
 
 function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermentoRows, movimentosRows) {
   const eventos = [];
+  const iniciouSemVolume = volumeProducaoPendente(lote)
+    || Boolean(lote.volume_informado_em);
 
   eventos.push({
     data:lote.criado_em || lote.data_producao,
-    titulo:"Produção registrada",
-    texto:`${fmt(lote.litros_produzidos)} L produzidos`,
+    titulo:iniciouSemVolume ? "Produção iniciada" : "Produção registrada",
+    texto:iniciouSemVolume
+      ? "Insumos registrados; volume produzido pendente"
+      : `${fmt(lote.litros_produzidos)} L produzidos`,
     ordem:dataParaOrdenacao(lote.criado_em || lote.data_producao)
   });
+
+  if (lote.volume_informado_em && !volumeProducaoPendente(lote)) {
+    eventos.push({
+      data:lote.volume_informado_em,
+      titulo:"Volume produzido informado",
+      texto:`${fmt(lote.litros_produzidos)} L produzidos`,
+      ordem:dataParaOrdenacao(lote.volume_informado_em)
+    });
+  }
 
   const insumosProducao = insumosRows.filter(i => i.etapa === "PRODUCAO");
   if (insumosProducao.length) {
@@ -886,6 +1043,7 @@ function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermento
 async function abrirFichaLote(id) {
   const lote = state.lotes.find(l => l.id === id);
   if (!lote) return;
+  const volumePendente = volumeProducaoPendente(lote);
 
   const box = document.getElementById("fichaLoteBox");
   const conteudo = document.getElementById("fichaLoteConteudo");
@@ -987,30 +1145,36 @@ async function abrirFichaLote(id) {
 
   conteudo.innerHTML = `
     <div class="loteFichaTitulo">${escapeHtml(lote.cerveja_nome)} — lote ${escapeHtml(lote.lote)}</div>
-    <div class="muted">Produzido em ${dataBR(lote.data_producao)} • ${fmt(lote.litros_produzidos)} L</div>
+    <div class="muted">Iniciada em ${dataBR(lote.data_producao)} • ${rotuloVolumeProducao(lote)}</div>
 
     <div class="loteStatusActions">
       <span class="statusBadge ${classeStatusLote(lote.status)}">${escapeHtml(rotuloStatusLote(lote.status))}</span>
-      <select onchange="alterarStatusLote('${lote.id}',this.value)">
-        ${STATUS_LOTE_OPCOES.map(s => `
-          <option value="${s}" ${s === lote.status ? "selected" : ""}>
-            ${rotuloStatusLote(s)}
-          </option>
-        `).join("")}
-      </select>
       ${
-        ["PRONTO_ENVASE","PARCIALMENTE_ENVASADO"].includes(lote.status)
+        volumePendente
+          ? `<button class="btnTiny btnEdit" onclick="abrirVolumeDaProducao('${lote.id}')">Informar litros produzidos</button>`
+          : `<select onchange="alterarStatusLote('${lote.id}',this.value)">
+              ${STATUS_LOTE_OPCOES
+                .filter(s => s !== "INSUMOS_REGISTRADOS")
+                .map(s => `
+                  <option value="${s}" ${s === lote.status ? "selected" : ""}>
+                    ${rotuloStatusLote(s)}
+                  </option>
+                `).join("")}
+            </select>`
+      }
+      ${
+        !volumePendente && ["PRONTO_ENVASE","PARCIALMENTE_ENVASADO"].includes(lote.status)
           ? `<button class="btnTiny btnEdit" onclick="abrirEnvaseDoLote('${lote.id}')">Registrar envase</button>`
           : ""
       }
     </div>
 
     <div class="gridCards" style="margin-top:12px;">
-      <div class="card"><span>Produzido</span><strong>${fmt(lote.litros_produzidos)} L</strong></div>
+      <div class="card"><span>Produzido</span><strong>${volumePendente ? "Pendente" : `${fmt(lote.litros_produzidos)} L`}</strong></div>
       <div class="card"><span>Envasado</span><strong>${fmt(totalEnvase)} L</strong></div>
       <div class="card"><span>Saldo</span><strong>${fmt(saldo)} L</strong></div>
       <div class="card"><span>Perda</span><strong>${fmt(totalPerda)} L</strong></div>
-      <div class="card"><span>Rendimento</span><strong>${fmt(rendimento,1)}%</strong></div>
+      <div class="card"><span>Rendimento</span><strong>${volumePendente ? "Pendente" : `${fmt(rendimento,1)}%`}</strong></div>
     </div>
 
     <div class="fichaGrid">
@@ -1377,7 +1541,7 @@ async function executarBuscaGlobal() {
       resultados.push({
         tipo:"Lote",
         titulo:`${p.cerveja_nome} — lote ${p.lote}`,
-        detalhe:`${rotuloStatusLote(p.status)} • ${fmt(p.litros_produzidos)} L • ${dataBR(p.data_producao)}`,
+        detalhe:`${rotuloStatusLote(p.status)} • ${rotuloVolumeProducao(p)} • ${dataBR(p.data_producao)}`,
         acao:`abrirResultadoLote('${p.id}')`
       });
     }
