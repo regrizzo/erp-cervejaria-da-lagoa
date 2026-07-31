@@ -1,5 +1,5 @@
 
-const APP_BUILD = "saidas-mobile-20260729";
+const APP_BUILD = "producao-duas-etapas-dashboard-20260730";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -78,6 +78,17 @@ function fmt(n, casas=0) {
 
 function fmtMoeda(n) {
   return Number(n || 0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+}
+
+function volumeProducaoPendente(producao) {
+  return Number(producao?.litros_produzidos || 0) <= 0
+    || producao?.status === "INSUMOS_REGISTRADOS";
+}
+
+function rotuloVolumeProducao(producao) {
+  return volumeProducaoPendente(producao)
+    ? "Volume pendente"
+    : `${fmt(producao?.litros_produzidos)} L`;
 }
 
 async function carregarConfiguracoesBase(force=false) {
@@ -374,7 +385,7 @@ async function carregarInicio(force=false) {
         ordenarPor:"data_retorno",
         ascending:false
       }),
-      sb.from("movimentacoes").select("*").order("criado_em", { ascending:false }).limit(8),
+      sb.from("movimentacoes").select("*").order("criado_em", { ascending:false }).limit(20),
       buscarTodasLinhas("barris_incompletos", {
         ordenarPor:"criado_em",
         ascending:false,
@@ -472,12 +483,21 @@ async function carregarInicio(force=false) {
   const envaseMes = agruparPorMes(envaseRows, "data_envase", "litros_total", 6);
   const saidasPorCerveja = agruparSoma(saidaRows, r => r.cerveja_nome, r => r.litros);
 
-  document.getElementById("dashTotalCervejas").innerText = `${estoquePorCerveja.filter(x => x.valor > 0).length} itens`;
-  renderBarChart("graficoEstoqueCerveja", estoquePorCerveja, { suffix:" L", limite:10 });
+  const totalCervejasEstoque = estoquePorCerveja.filter(x => x.valor > 0).length;
+  const totalCervejasSaidas = saidasPorCerveja.filter(x => x.valor > 0).length;
+  document.getElementById("dashTotalCervejas").innerText =
+    totalCervejasEstoque > 20
+      ? `20 de ${totalCervejasEstoque} itens`
+      : `${totalCervejasEstoque} itens`;
+  document.getElementById("dashTotalSaidasCervejas").innerText =
+    totalCervejasSaidas > 20
+      ? `20 de ${totalCervejasSaidas} cervejas`
+      : `${totalCervejasSaidas} cerveja(s)`;
+  renderBarChart("graficoEstoqueCerveja", estoquePorCerveja, { suffix:" L", limite:20 });
   renderDonutOrigem("graficoEstoqueOrigem", estoquePorOrigem);
   renderBarChart("graficoProducaoMes", producaoMes, { suffix:" L", limite:6 });
   renderBarChart("graficoEnvaseMes", envaseMes, { suffix:" L", limite:6 });
-  renderBarChart("graficoSaidasCerveja", saidasPorCerveja, { suffix:" L", limite:8 });
+  renderBarChart("graficoSaidasCerveja", saidasPorCerveja, { suffix:" L", limite:20 });
 
   const insumosGraf = [
     { nome:"Malte KG", valor:malte },
@@ -527,7 +547,7 @@ async function carregarInicio(force=false) {
 
   const alertBox = document.getElementById("dashboardAlertas");
   alertBox.innerHTML = alertas.length ? "" : '<div class="item"><div class="alertLine"><span class="alertIcon ok">✓</span><span class="sub">Nenhum alerta crítico agora.</span></div></div>';
-  alertas.slice(0,12).forEach(a => {
+  alertas.slice(0,20).forEach(a => {
     alertBox.insertAdjacentHTML("beforeend", `<div class="item"><div class="alertLine"><span class="alertIcon">!</span><span>${escapeHtml(a)}</span></div></div>`);
   });
 
@@ -549,7 +569,7 @@ async function carregarInicio(force=false) {
     .map(c => ({...c, aberto: Math.max(0, c.saidas - c.retornos)}))
     .filter(c => c.aberto > 0)
     .sort((a,b) => b.aberto - a.aberto)
-    .slice(0,8);
+    .slice(0,16);
 
   const barrisBox = document.getElementById("dashboardBarrisClientes");
   barrisBox.innerHTML = barrisClientes.length ? "" : '<div class="item"><span class="sub">Nenhum barril em cliente.</span></div>';
@@ -564,12 +584,12 @@ async function carregarInicio(force=false) {
 
   const lotesBox = document.getElementById("dashboardLotesFermentando");
   lotesBox.innerHTML = state.producoesFermentando.length ? "" : '<div class="item"><span class="sub">Nenhum lote fermentando.</span></div>';
-  state.producoesFermentando.slice(0,8).forEach(p => {
+  state.producoesFermentando.slice(0,16).forEach(p => {
     const dias = Math.max(0, Math.floor((new Date() - new Date(p.data_producao + "T00:00:00")) / 86400000));
     lotesBox.insertAdjacentHTML("beforeend", `
       <div class="item">
-        <div><strong>${escapeHtml(p.lote)} — ${escapeHtml(p.cerveja_nome)}</strong><div class="sub">${fmt(p.litros_produzidos)} L • ${dias} dia(s)</div></div>
-        <span class="badge">${escapeHtml(p.status)}</span>
+        <div><strong>${escapeHtml(p.lote)} — ${escapeHtml(p.cerveja_nome)}</strong><div class="sub">${rotuloVolumeProducao(p)} • ${dias} dia(s)</div></div>
+        <span class="statusBadge ${classeStatusLote(p.status)}">${escapeHtml(rotuloStatusLote(p.status))}</span>
       </div>
     `);
   });
@@ -631,14 +651,16 @@ function prepararSelectCervejas(id) {
 function prepararSelectLotes(id) {
   const sel = document.getElementById(id);
   sel.innerHTML = '<option value="">Selecionar lote...</option>';
-  state.producoesFermentando.forEach(p => {
-    const op = document.createElement("option");
-    op.value = p.id;
-    op.dataset.lote = p.lote;
-    op.dataset.cerveja = p.cerveja_nome;
-    op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${fmt(p.litros_produzidos)}L)`;
-    sel.appendChild(op);
-  });
+  state.producoesFermentando
+    .filter(p => !volumeProducaoPendente(p))
+    .forEach(p => {
+      const op = document.createElement("option");
+      op.value = p.id;
+      op.dataset.lote = p.lote;
+      op.dataset.cerveja = p.cerveja_nome;
+      op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${fmt(p.litros_produzidos)}L)`;
+      sel.appendChild(op);
+    });
 }
 
 function getProducaoSelecionada(selectId) {
@@ -2524,7 +2546,7 @@ async function carregarRelatorioMensal(force=false) {
 
   const lotesProduzidos = producoes
     .sort((a,b) => String(a.data_producao).localeCompare(String(b.data_producao)))
-    .map(p => `${p.lote} — ${p.cerveja_nome}: ${fmt(p.litros_produzidos)} L (${dataBR(p.data_producao)})`);
+    .map(p => `${p.lote} — ${p.cerveja_nome}: ${rotuloVolumeProducao(p)} (${dataBR(p.data_producao)})`);
 
   const consumo = {};
   insumos.forEach(i => {

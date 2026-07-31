@@ -16,14 +16,20 @@ ATUALIZAÇÃO DE INTEGRIDADE E CONFIABILIDADE
 1. Gere e guarde um backup.
 2. No editor SQL do Supabase, execute:
    10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql
-3. Confirme que o editor mostrou sucesso.
-4. Só depois publique os arquivos atuais do site.
-5. Atualize a página do ERP e faça os testes rápidos abaixo.
+3. Depois, execute:
+   11_PRODUCAO_EM_DUAS_ETAPAS.sql
+4. Confirme que os dois arquivos mostraram sucesso.
+5. Só depois publique os arquivos atuais do site.
+6. Atualize a página do ERP e faça os testes rápidos abaixo.
 
 O SQL 10 não apaga o histórico. Ele protege novos registros contra valores
 inválidos e transforma entrada de cerveja, saída múltipla, produção, envase e
 dry hopping em operações completas: se uma parte falhar, nenhuma parte fica
 gravada.
+
+O SQL 11 permite cadastrar os insumos da produção primeiro e informar os litros
+realmente produzidos depois. Ao informar o volume, os insumos não são baixados
+novamente.
 
 TESTE RÁPIDO DEPOIS DA ATUALIZAÇÃO
 

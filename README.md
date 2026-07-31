@@ -72,8 +72,9 @@ Para uma instalação nova:
 3. Execute `07_PAGAMENTO_PHENOMENA_FIFO.sql`.
 4. Execute `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql`.
 5. Execute `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`.
-6. Configure os provedores de autenticação desejados no Supabase.
-7. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
+6. Execute `11_PRODUCAO_EM_DUAS_ETAPAS.sql`.
+7. Configure os provedores de autenticação desejados no Supabase.
+8. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
    usuários já existentes no momento da instalação em administradores ativos.
 
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
@@ -90,6 +91,10 @@ Em um banco já atualizado, gere um backup e execute
 site. O SQL adiciona validações de estoque e faz com que entrada de cerveja,
 saída múltipla, produção, envase e dry hopping sejam gravados por inteiro ou
 cancelados por inteiro.
+
+Depois do SQL 10, execute `11_PRODUCAO_EM_DUAS_ETAPAS.sql` para permitir que
+uma produção seja iniciada com a baixa dos insumos e tenha o volume realmente
+produzido informado depois. Essa segunda etapa não repete a baixa dos insumos.
 
 ### Migração dos dados antigos
 
@@ -135,4 +140,5 @@ perfis e permissões devem sempre preservar as políticas presentes em
 `01_BANCO_COMPLETO.sql`, `06_BARRIL_INCOMPLETO_DISPONIVEL.sql` e
 `07_PAGAMENTO_PHENOMENA_FIFO.sql` e
 `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql` e
-`10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`.
+`10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql` e
+`11_PRODUCAO_EM_DUAS_ETAPAS.sql`.
