@@ -1,5 +1,5 @@
 
-const APP_BUILD = "producao-duas-etapas-dashboard-20260730";
+const APP_BUILD = "seletores-com-saldo-20260813";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -27,6 +27,9 @@ const state = {
   cervejas: [],
   insumos: [],
   clientes: [],
+  insumosComSaldo: new Set(),
+  cervejasSaidaComSaldo: new Set(),
+  cervejasPhenomenaComSaldo: new Set(),
   producoesFermentando: [],
   fermentosReuso: [],
   barrisIncompletos: [],
@@ -640,7 +643,19 @@ async function carregarProducao(force=false) {
 function prepararSelectCervejas(id) {
   const sel = document.getElementById(id);
   sel.innerHTML = '<option value="">Selecionar cerveja...</option>';
-  state.cervejas.forEach(c => {
+  let cervejas = state.cervejas;
+  if (id === "phenRetiradaCerveja") {
+    cervejas = cervejas.filter(c => state.cervejasPhenomenaComSaldo.has(c.nome));
+  }
+
+  if (id === "phenRetiradaCerveja" && !cervejas.length) {
+    sel.options[0].textContent = "Nenhuma cerveja com barril dispon\u00edvel";
+    sel.disabled = true;
+  } else {
+    sel.disabled = false;
+  }
+
+  cervejas.forEach(c => {
     const op = document.createElement("option");
     op.value = c.nome;
     op.textContent = c.nome;
@@ -663,6 +678,63 @@ function prepararSelectLotes(id) {
     });
 }
 
+function chaveInsumoEstoque(tipo, nome) {
+  return `${String(tipo || "").trim().toUpperCase()}|${String(nome || "").trim().toUpperCase()}`;
+}
+
+function insumoComSaldo(tipo, nome) {
+  return state.insumosComSaldo.has(chaveInsumoEstoque(tipo, nome));
+}
+
+async function carregarInsumosComSaldo() {
+  const { data, error } = await sb.from("estoque_insumos")
+    .select("tipo,nome,quantidade");
+
+  if (error) throw error;
+  state.insumosComSaldo = new Set(
+    (data || [])
+      .filter(item => Number(item.quantidade || 0) > 0)
+      .map(item => chaveInsumoEstoque(item.tipo, item.nome))
+  );
+}
+
+async function carregarCervejasSaidaComSaldo() {
+  const { data, error } = await sb.from("estoque_cerveja")
+    .select("cerveja_nome,q10,q20,q30,q50")
+    .in("origem", ["PRODUCAO","ITAPEMA","PHENOMENA"]);
+
+  if (error) throw error;
+  state.cervejasSaidaComSaldo = new Set(
+    (data || [])
+      .filter(item => somaBarris(item.q10,item.q20,item.q30,item.q50) > 0)
+      .map(item => item.cerveja_nome)
+  );
+}
+
+async function carregarCervejasPhenomenaComSaldo() {
+  const [completos, incompletos] = await Promise.all([
+    sb.from("estoque_cerveja")
+      .select("cerveja_nome,q10,q20,q30,q50")
+      .eq("origem","PHENOMENA"),
+    sb.from("barris_incompletos")
+      .select("cerveja_nome,litros_atuais")
+      .eq("origem","PHENOMENA")
+      .eq("status","DISPONIVEL")
+  ]);
+
+  const erro = completos.error || incompletos.error;
+  if (erro) throw erro;
+
+  const disponiveis = new Set();
+  (completos.data || [])
+    .filter(item => somaBarris(item.q10,item.q20,item.q30,item.q50) > 0)
+    .forEach(item => disponiveis.add(item.cerveja_nome));
+  (incompletos.data || [])
+    .filter(item => Number(item.litros_atuais || 0) > 0)
+    .forEach(item => disponiveis.add(item.cerveja_nome));
+  state.cervejasPhenomenaComSaldo = disponiveis;
+}
+
 function getProducaoSelecionada(selectId) {
   const id = document.getElementById(selectId)?.value;
   if (!id) return null;
@@ -670,7 +742,15 @@ function getProducaoSelecionada(selectId) {
 }
 
 
-function prepararFormDryHop() {
+async function prepararFormDryHop() {
+  await carregarBaseCadastros();
+  await carregarProducoesFermentando();
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+    mostrarErro("dryErro", "N\u00e3o foi poss\u00edvel consultar o estoque de insumos: " + e.message);
+  }
   prepararSelectLotes("dryLote");
   document.getElementById("dryLupulos").innerHTML = "";
   adicionarLinhaInsumo("dryLupulos","LUPULO");
@@ -688,7 +768,8 @@ function prepararFormEntradaInsumo() {
 function prepararSelectInsumos(id, tipo, placeholder) {
   const sel = document.getElementById(id);
   sel.innerHTML = `<option value="">${placeholder}</option>`;
-  state.insumos.filter(i => i.tipo === tipo).forEach(i => {
+  const disponiveis = state.insumos.filter(i => i.tipo === tipo && insumoComSaldo(i.tipo, i.nome));
+  disponiveis.forEach(i => {
     const op = document.createElement("option");
     op.value = i.nome;
     op.textContent = `${i.nome} (${i.unidade})`;
@@ -706,7 +787,12 @@ function adicionarLinhaInsumo(containerId, tipo) {
   const sel = document.createElement("select");
   sel.className = "insumoNome";
   sel.innerHTML = '<option value="">Selecionar...</option>';
-  state.insumos.filter(i => i.tipo === tipo).forEach(i => {
+  const disponiveis = state.insumos.filter(i => i.tipo === tipo && insumoComSaldo(i.tipo, i.nome));
+  if (!disponiveis.length) {
+    sel.options[0].textContent = "Nenhum item com saldo";
+    sel.disabled = true;
+  }
+  disponiveis.forEach(i => {
     const op = document.createElement("option");
     op.value = i.nome;
     op.textContent = `${i.nome} (${i.unidade})`;
@@ -1785,6 +1871,13 @@ async function salvarDescarteFermento() {
 }
 
 async function prepararFormRetiradaPhenomena() {
+  await carregarBaseCadastros();
+  try {
+    await carregarCervejasPhenomenaComSaldo();
+  } catch(e) {
+    state.cervejasPhenomenaComSaldo = new Set();
+    mostrarErro("phenRetErro", "N\u00e3o foi poss\u00edvel consultar o estoque Phenomena: " + e.message);
+  }
   prepararSelectCervejas("phenRetiradaCerveja");
   await prepararBarrisIncompletosPhenomena();
   atualizarResumoRetiradaPhenomena();
@@ -2145,7 +2238,7 @@ async function salvarRetiradaPhenomena() {
       + `Débito gerado: ${fmtMoeda(data?.valor_total || calculo.valor)}.`
     );
     await carregarPhenomena(true);
-    await prepararBarrisIncompletosPhenomena();
+    await prepararFormRetiradaPhenomena();
     await carregarInicio(true);
   } catch(e) {
     const mensagem = String(e?.message || e || "Não foi possível registrar a retirada.");
@@ -2839,6 +2932,12 @@ async function salvarAjusteInsumo() {
 async function prepararFormSaida() {
   await carregarBaseCadastros();
   await carregarConfiguracoesBase();
+  try {
+    await carregarCervejasSaidaComSaldo();
+  } catch(e) {
+    state.cervejasSaidaComSaldo = new Set();
+    mostrarErro("saidaErro", "N\u00e3o foi poss\u00edvel consultar os barris dispon\u00edveis: " + e.message);
+  }
   prepararSelectClientes("saidaCliente");
   document.getElementById("saidaItens").innerHTML = "";
   adicionarItemSaida();
@@ -4185,7 +4284,12 @@ function adicionarItemSaida() {
 
   const sel = div.querySelector(".saidaItemCerveja");
   sel.innerHTML = '<option value="">Selecionar cerveja...</option>';
-  state.cervejas.forEach(c => {
+  const disponiveis = state.cervejas.filter(c => state.cervejasSaidaComSaldo.has(c.nome));
+  if (!disponiveis.length) {
+    sel.options[0].textContent = "Nenhuma cerveja com barris dispon\u00edveis";
+    sel.disabled = true;
+  }
+  disponiveis.forEach(c => {
     const op = document.createElement("option");
     op.value = c.nome;
     op.textContent = c.nome;

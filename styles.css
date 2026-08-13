@@ -127,6 +127,41 @@ h3 { margin:18px 0 10px; }
 .btnEdit { background:#0ea5e9; }
 .btnDangerTiny { background:#ef4444; }
 .btnNeutral { background:#64748b; }
+.correcaoDataLinha {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+  align-items:end;
+}
+.correcaoInsumosLista {
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin-top:10px;
+}
+.correcaoInsumoItem {
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px;
+  background:#fff;
+}
+.correcaoInsumoCampos {
+  display:grid;
+  grid-template-columns:minmax(0,2fr) minmax(120px,1fr);
+  gap:8px;
+}
+.correcaoInsumoCampos label {
+  margin-top:0;
+}
+@media (max-width:560px) {
+  .correcaoDataLinha,
+  .correcaoInsumoCampos {
+    grid-template-columns:1fr;
+  }
+  .correcaoDataLinha .btnTiny {
+    width:100% !important;
+  }
+}
 .loteFichaTitulo {
   font-size:18px;
   font-weight:950;

@@ -34,7 +34,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=producao-duas-etapas-dashboard-20260730" />
+  <link rel="stylesheet" href="./styles.css?v=seletores-com-saldo-20260813" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -256,9 +256,47 @@
         <div class="actionGrid">
           <button class="btnMain" data-editar-modulo="producao" onclick="toggleForm('formProducao')">+ Nova Produção</button>
           <button class="btnSecondary" data-editar-modulo="producao" onclick="toggleForm('formVolumeProducao')">📏 Informar litros</button>
+          <button class="btnWarn" data-editar-modulo="producao" onclick="toggleForm('formEditarProducao')">✏️ Corrigir produção</button>
           <button class="btnSecondary" data-editar-modulo="producao" onclick="toggleForm('formDryHop')">🌿 Dry Hopping</button>
           <button class="btnSuccess" data-editar-modulo="producao" onclick="toggleForm('formEnvase')">🍺 Envase</button>
           <button class="btnSecondary" onclick="mostrarTela('fermentos')">🧫 Fermentos</button>
+        </div>
+
+        <div id="formEditarProducao" class="formBox" data-proteger="1" style="display:none;">
+          <h3>Corrigir produção</h3>
+
+          <label>Produção / lote</label>
+          <select id="editarProducaoLote" onchange="carregarEdicaoProducaoSelecionada()"></select>
+
+          <div id="editarProducaoConteudo" style="display:none;">
+            <label>Motivo da correção</label>
+            <input id="editarProducaoMotivo" placeholder="Ex: quantidade de lúpulo digitada incorretamente">
+            <div class="sub">O motivo ficará registrado no histórico. Use o mesmo motivo para corrigir a data ou qualquer item abaixo.</div>
+
+            <div class="fichaSecao">
+              <h4>Data da produção</h4>
+              <div class="correcaoDataLinha">
+                <input id="editarProducaoData" type="date">
+                <button id="editarProducaoDataBtn" class="btnTiny btnEdit" type="button" data-editar-modulo="producao" onclick="salvarDataProducaoCorrigida()">Salvar data</button>
+              </div>
+            </div>
+
+            <div class="fichaSecao">
+              <h4>Insumos usados na produção</h4>
+              <div class="sub">Altere o item ou a quantidade. O sistema ajustará somente a diferença no estoque.</div>
+              <div id="editarInsumosProducao" class="correcaoInsumosLista"></div>
+            </div>
+
+            <div class="fichaSecao">
+              <h4>Insumos do dry hopping</h4>
+              <div class="sub">Cada correção atualiza também o registro original do dry hopping.</div>
+              <div id="editarInsumosDryHop" class="correcaoInsumosLista"></div>
+            </div>
+
+            <div class="infoBox">Para remover completamente um item incorreto, use o botão Remover. O total consumido será devolvido ao estoque.</div>
+          </div>
+
+          <div id="editarProducaoErro" class="erro"></div>
         </div>
 
         <div id="formProducao" class="formBox" data-proteger="1" style="display:none;">
@@ -1249,9 +1287,9 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=producao-duas-etapas-dashboard-20260730"></script>
-  <script src="./js/operacoes.js?v=producao-duas-etapas-dashboard-20260730"></script>
-  <script src="./js/administracao.js?v=producao-duas-etapas-dashboard-20260730"></script>
-  <script src="./js/acesso.js?v=producao-duas-etapas-dashboard-20260730"></script>
+  <script src="./app.js?v=seletores-com-saldo-20260813"></script>
+  <script src="./js/operacoes.js?v=seletores-com-saldo-20260813"></script>
+  <script src="./js/administracao.js?v=seletores-com-saldo-20260813"></script>
+  <script src="./js/acesso.js?v=seletores-com-saldo-20260813"></script>
 </body>
 </html>

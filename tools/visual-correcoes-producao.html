@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teste visual — correções de produção</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div id="app" style="display:block">
+    <main class="container">
+      <section class="tela active">
+        <div class="sectionHeader"><h2>Produção</h2></div>
+        <div class="actionGrid">
+          <button class="btnMain">+ Nova Produção</button>
+          <button class="btnSecondary">📏 Informar litros</button>
+          <button class="btnWarn">✏️ Corrigir produção</button>
+          <button class="btnSecondary">🌿 Dry Hopping</button>
+          <button class="btnSuccess">🍺 Envase</button>
+          <button class="btnSecondary">🧫 Fermentos</button>
+        </div>
+
+        <div class="formBox" style="display:block">
+          <h3>Corrigir produção</h3>
+          <label>Produção / lote</label>
+          <select><option>ANARCHY — lote 4 (10/08/2026)</option></select>
+
+          <label>Motivo da correção</label>
+          <input value="Quantidade de lúpulo digitada incorretamente">
+          <div class="sub">O motivo ficará registrado no histórico. Use o mesmo motivo para corrigir a data ou qualquer item abaixo.</div>
+
+          <div class="fichaSecao">
+            <h4>Data da produção</h4>
+            <div class="correcaoDataLinha">
+              <input type="date" value="2026-08-10">
+              <button class="btnTiny btnEdit">Salvar data</button>
+            </div>
+          </div>
+
+          <div class="fichaSecao">
+            <h4>Insumos usados na produção</h4>
+            <div class="sub">Altere o item ou a quantidade. O sistema ajustará somente a diferença no estoque.</div>
+            <div class="correcaoInsumosLista">
+              <div class="correcaoInsumoItem">
+                <div class="correcaoInsumoCampos">
+                  <div><label>Item</label><select><option>Malte Pilsen (KG)</option></select></div>
+                  <div><label>Quantidade (KG)</label><input value="150"></div>
+                </div>
+                <div class="sub">MALTE • Produção</div>
+                <div class="rowActions"><button class="btnTiny btnEdit">Salvar correção</button><button class="btnTiny btnDangerTiny">Remover</button></div>
+              </div>
+              <div class="correcaoInsumoItem">
+                <div class="correcaoInsumoCampos">
+                  <div><label>Item</label><select><option>Lúpulo Citra (G)</option></select></div>
+                  <div><label>Quantidade (G)</label><input value="900"></div>
+                </div>
+                <div class="sub">LUPULO • Produção</div>
+                <div class="rowActions"><button class="btnTiny btnEdit">Salvar correção</button><button class="btnTiny btnDangerTiny">Remover</button></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fichaSecao">
+            <h4>Insumos do dry hopping</h4>
+            <div class="sub">Cada correção atualiza também o registro original do dry hopping.</div>
+            <div class="correcaoInsumosLista">
+              <div class="correcaoInsumoItem">
+                <div class="correcaoInsumoCampos">
+                  <div><label>Item</label><select><option>Lúpulo Mosaic (G)</option><option>Lúpulo Citra (G)</option></select></div>
+                  <div><label>Quantidade (G)</label><input value="1200"></div>
+                </div>
+                <div class="sub">LUPULO • Dry hopping</div>
+                <div class="rowActions"><button class="btnTiny btnEdit">Salvar correção</button><button class="btnTiny btnDangerTiny">Remover</button></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="infoBox">Para remover completamente um item incorreto, use o botão Remover. O total consumido será devolvido ao estoque.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

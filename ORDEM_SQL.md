@@ -13,6 +13,7 @@ Execute apenas:
 4. `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql`
 5. `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`
 6. `11_PRODUCAO_EM_DUAS_ETAPAS.sql`
+7. `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`
 
 O primeiro arquivo consolida a estrutura original, envase detalhado, retornos,
 Phenomena, correções, restauração e controle de acesso. O segundo cria o
@@ -22,6 +23,7 @@ quarto permite retirar barris incompletos da Phenomena pelo volume real. O
 quinto protege valores de estoque, reforça a auditoria e torna atômicas as
 operações de entrada, saída, produção, envase e dry hopping. O sexto permite
 cadastrar e baixar os insumos antes de informar o volume realmente produzido.
+O sétimo permite corrigir a data e os insumos consumidos sem estornar o lote.
 
 ## Banco existente
 
@@ -89,6 +91,19 @@ O SQL 11 não altera lotes antigos nem baixa insumos automaticamente. Ele cria o
 estado `INSUMOS_REGISTRADOS` para novos lotes ainda sem volume e impede que o
 volume seja informado duas vezes. A segunda etapa apenas completa o mesmo lote;
 os insumos não são baixados novamente.
+
+### Correções de produção e dry hopping
+
+Depois do SQL 11, ative as correções pontuais:
+
+1. faça e guarde um backup;
+2. execute `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`;
+3. confirme que o Supabase mostrou sucesso;
+4. só então publique os arquivos atuais do site.
+
+O SQL 12 permite alterar a data da produção e corrigir ou remover um insumo já
+consumido na produção ou no dry hopping. O estoque é ajustado somente pela
+diferença, a operação é atômica e o motivo fica registrado nas movimentações.
 
 ## Arquivos históricos
 

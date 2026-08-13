@@ -106,6 +106,7 @@ function toggleForm(id) {
 
   if (id === "formProducao") prepararFormProducao();
   if (id === "formVolumeProducao") prepararFormVolumeProducao();
+  if (id === "formEditarProducao") prepararFormEdicaoProducao();
   if (id === "formDryHop") prepararFormDryHop();
   if (id === "formEnvase") prepararFormEnvase();
   if (id === "formEntradaCerveja") prepararFormEntradaCerveja();
@@ -130,6 +131,13 @@ function toggleForm(id) {
    ----------------------------- */
 
 async function prepararFormProducao() {
+  await carregarBaseCadastros();
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+    mostrarErro("prodErro", "N\u00e3o foi poss\u00edvel consultar o estoque de insumos: " + e.message);
+  }
   prepararSelectCervejas("prodCerveja");
   prepararSelectInsumos("prodFermento","FERMENTO","Sem fermento");
 
@@ -137,13 +145,10 @@ async function prepararFormProducao() {
   prepararSelectFermentosReuso("prodFermentoReuso", "Selecionar fermento reutilizável...");
   alternarTipoFermentoProducao();
 
-  if (!document.querySelector("#prodMaltes .linhaInsumo")) {
-    adicionarLinhaInsumo("prodMaltes","MALTE");
-  }
-
-  if (!document.querySelector("#prodLupulos .linhaInsumo")) {
-    adicionarLinhaInsumo("prodLupulos","LUPULO");
-  }
+  document.getElementById("prodMaltes").innerHTML = "";
+  document.getElementById("prodLupulos").innerHTML = "";
+  adicionarLinhaInsumo("prodMaltes","MALTE");
+  adicionarLinhaInsumo("prodLupulos","LUPULO");
 
   atualizarResumoProducao();
   instalarProtecaoFormularios();
@@ -324,6 +329,11 @@ async function salvarProducao() {
   document.getElementById("prodFermentoReuso").value = "";
   document.getElementById("prodMaltes").innerHTML = "";
   document.getElementById("prodLupulos").innerHTML = "";
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+  }
   adicionarLinhaInsumo("prodMaltes","MALTE");
   adicionarLinhaInsumo("prodLupulos","LUPULO");
 
@@ -459,6 +469,257 @@ async function salvarVolumeProducao() {
   carregarInicio(true);
 }
 
+async function prepararFormEdicaoProducao(producaoId="") {
+  await carregarBaseCadastros(true);
+  await carregarLotes(true);
+  mostrarErro("editarProducaoErro", "");
+  let erroDisponibilidade = "";
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+    erroDisponibilidade = "N\u00e3o foi poss\u00edvel consultar o estoque de insumos: " + e.message;
+  }
+
+  const sel = document.getElementById("editarProducaoLote");
+  if (!sel) return;
+
+  sel.innerHTML = '<option value="">Selecionar produção...</option>';
+  state.lotes.forEach(p => {
+    const op = document.createElement("option");
+    op.value = p.id;
+    op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${dataBR(p.data_producao)})`;
+    sel.appendChild(op);
+  });
+
+  if (producaoId && state.lotes.some(p => p.id === producaoId)) {
+    sel.value = producaoId;
+  }
+
+  document.getElementById("editarProducaoMotivo").value = "";
+  await carregarEdicaoProducaoSelecionada();
+  if (erroDisponibilidade) mostrarErro("editarProducaoErro", erroDisponibilidade);
+  instalarProtecaoFormularios();
+}
+
+async function abrirEdicaoDaProducao(id) {
+  mostrarTela("producao");
+
+  const form = document.getElementById("formEditarProducao");
+  document.querySelectorAll(".formBox").forEach(f => {
+    f.style.display = "none";
+  });
+  form.style.display = "block";
+
+  await prepararFormEdicaoProducao(id);
+  form.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+function opcoesInsumosCorrecao(tipo, selecionado, unidadeAtual) {
+  const ativos = state.insumos.filter(i =>
+    i.tipo === tipo && (i.nome === selecionado || insumoComSaldo(i.tipo, i.nome))
+  );
+  const opcaoHistorica = ativos.some(i => i.nome === selecionado)
+    ? ""
+    : `<option value="${escapeHtml(selecionado)}" selected>${escapeHtml(selecionado)} (${escapeHtml(unidadeAtual)}) — histórico</option>`;
+
+  return opcaoHistorica + ativos.map(i => `
+      <option value="${escapeHtml(i.nome)}" ${i.nome === selecionado ? "selected" : ""}>
+        ${escapeHtml(i.nome)} (${escapeHtml(i.unidade)})
+      </option>
+    `).join("");
+}
+
+function renderItemCorrecaoInsumo(item) {
+  const etapa = item.etapa === "DRY_HOPPING" ? "DRY_HOPPING" : "PRODUCAO";
+  return `
+    <div class="correcaoInsumoItem" data-item-id="${item.id}">
+      <div class="correcaoInsumoCampos">
+        <div>
+          <label>Item</label>
+          <select id="corrigirInsumoNome_${item.id}">
+            ${opcoesInsumosCorrecao(item.tipo, item.insumo_nome, item.unidade)}
+          </select>
+        </div>
+        <div>
+          <label>Quantidade (${escapeHtml(item.unidade)})</label>
+          <input id="corrigirInsumoQtd_${item.id}" type="number" min="0.001" step="0.001" value="${Number(item.quantidade || 0)}">
+        </div>
+      </div>
+      <div class="sub">${escapeHtml(item.tipo)} • ${etapa === "DRY_HOPPING" ? "Dry hopping" : "Produção"}</div>
+      <div class="rowActions">
+        <button class="btnTiny btnEdit" type="button" data-editar-modulo="producao" onclick="salvarInsumoConsumidoCorrigido('${item.id}')">Salvar correção</button>
+        <button class="btnTiny btnDangerTiny" type="button" data-editar-modulo="producao" onclick="removerInsumoConsumido('${item.id}')">Remover</button>
+      </div>
+    </div>
+  `;
+}
+
+async function carregarEdicaoProducaoSelecionada() {
+  const producaoId = document.getElementById("editarProducaoLote")?.value;
+  const conteudo = document.getElementById("editarProducaoConteudo");
+  const boxProducao = document.getElementById("editarInsumosProducao");
+  const boxDry = document.getElementById("editarInsumosDryHop");
+
+  mostrarErro("editarProducaoErro", "");
+
+  if (!producaoId) {
+    if (conteudo) conteudo.style.display = "none";
+    return;
+  }
+
+  const producao = state.lotes.find(p => p.id === producaoId);
+  if (!producao) {
+    mostrarErro("editarProducaoErro", "Produção não encontrada. Atualize a página.");
+    return;
+  }
+
+  conteudo.style.display = "block";
+  document.getElementById("editarProducaoData").value = producao.data_producao || "";
+  boxProducao.innerHTML = '<div class="sub">Carregando insumos...</div>';
+  boxDry.innerHTML = '<div class="sub">Carregando dry hopping...</div>';
+
+  const { data, error } = await sb.from("producao_insumos")
+    .select("*")
+    .eq("producao_id", producaoId)
+    .order("criado_em", { ascending:true });
+
+  if (error) {
+    mostrarErro("editarProducaoErro", error.message);
+    boxProducao.innerHTML = "";
+    boxDry.innerHTML = "";
+    return;
+  }
+
+  state.edicaoProducaoInsumos = data || [];
+  const itensProducao = state.edicaoProducaoInsumos.filter(
+    i => (i.etapa || "PRODUCAO") === "PRODUCAO"
+  );
+  const itensDry = state.edicaoProducaoInsumos.filter(
+    i => i.etapa === "DRY_HOPPING"
+  );
+
+  boxProducao.innerHTML = itensProducao.length
+    ? itensProducao.map(renderItemCorrecaoInsumo).join("")
+    : '<div class="sub">Nenhum insumo de estoque registrado na produção.</div>';
+
+  boxDry.innerHTML = itensDry.length
+    ? itensDry.map(renderItemCorrecaoInsumo).join("")
+    : '<div class="sub">Nenhum dry hopping registrado neste lote.</div>';
+
+  marcarFormularioLimpo("formEditarProducao");
+}
+
+function motivoCorrecaoProducao() {
+  return document.getElementById("editarProducaoMotivo")?.value.trim() || "";
+}
+
+async function salvarDataProducaoCorrigida() {
+  mostrarErro("editarProducaoErro", "");
+
+  const producaoId = document.getElementById("editarProducaoLote")?.value;
+  const dataNova = document.getElementById("editarProducaoData")?.value;
+  const motivo = motivoCorrecaoProducao();
+
+  if (!producaoId || !dataNova || !motivo) {
+    mostrarErro("editarProducaoErro", "Selecione a produção, informe a data e o motivo da correção.");
+    return;
+  }
+
+  const producao = state.lotes.find(p => p.id === producaoId);
+  if (!confirm(
+    `CORRIGIR DATA DA PRODUÇÃO?\n\n${producao?.cerveja_nome || ""} — lote ${producao?.lote || ""}\nDe: ${dataBR(producao?.data_producao)}\nPara: ${dataBR(dataNova)}\n\nMotivo: ${motivo}`
+  )) return;
+
+  const btn = document.getElementById("editarProducaoDataBtn");
+  btn.disabled = true;
+  btn.innerText = "Salvando...";
+
+  try {
+    const { error } = await sb.rpc("erp_editar_data_producao", {
+      p_producao_id:producaoId,
+      p_data_producao:dataNova,
+      p_motivo:motivo
+    });
+    if (error) throw error;
+  } catch(e) {
+    const mensagem = String(e?.message || e || "Não foi possível corrigir a data.");
+    mostrarErro(
+      "editarProducaoErro",
+      mensagem.includes("erp_editar_data_producao")
+        ? "A atualização SQL 12 de correções ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+    return;
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Salvar data";
+  }
+
+  invalidar("producao","producoesFermentando","lotes","inicio","painelDia","auditoria");
+  await carregarLotes(true);
+  await prepararFormEdicaoProducao(producaoId);
+  alert("Data da produção corrigida e registrada no histórico.");
+}
+
+async function executarCorrecaoInsumoConsumido(itemId, quantidadeForcada=null) {
+  mostrarErro("editarProducaoErro", "");
+
+  const item = state.edicaoProducaoInsumos?.find(i => i.id === itemId);
+  const nome = document.getElementById(`corrigirInsumoNome_${itemId}`)?.value || "";
+  const quantidade = quantidadeForcada === null
+    ? Number(document.getElementById(`corrigirInsumoQtd_${itemId}`)?.value || 0)
+    : Number(quantidadeForcada);
+  const motivo = motivoCorrecaoProducao();
+
+  if (!item || !motivo || quantidade < 0 || (quantidade > 0 && !nome)) {
+    mostrarErro("editarProducaoErro", "Informe o motivo, o item correto e uma quantidade válida.");
+    return false;
+  }
+
+  const removendo = quantidade === 0;
+  const resumoNovo = removendo ? "REMOVER" : `${nome}: ${fmt(quantidade,3)} ${item.unidade}`;
+  if (!confirm(
+    `CORRIGIR INSUMO?\n\nAtual: ${item.insumo_nome}: ${fmt(item.quantidade,3)} ${item.unidade}\nNovo: ${resumoNovo}\nEtapa: ${item.etapa === "DRY_HOPPING" ? "Dry hopping" : "Produção"}\n\nMotivo: ${motivo}\n\nO estoque será ajustado somente pela diferença.`
+  )) return false;
+
+  try {
+    const { error } = await sb.rpc("erp_editar_insumo_consumido", {
+      p_item_id:itemId,
+      p_nome_novo:nome || item.insumo_nome,
+      p_quantidade_nova:quantidade,
+      p_motivo:motivo
+    });
+    if (error) throw error;
+  } catch(e) {
+    const mensagem = String(e?.message || e || "Não foi possível corrigir o insumo.");
+    mostrarErro(
+      "editarProducaoErro",
+      mensagem.includes("erp_editar_insumo_consumido")
+        ? "A atualização SQL 12 de correções ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+    return false;
+  }
+
+  invalidar(
+    "estoque","inicio","producao","producoesFermentando",
+    "lotes","painelDia","auditoria","correcoes"
+  );
+  await carregarEdicaoProducaoSelecionada();
+  marcarFormularioLimpo("formEditarProducao");
+  alert(removendo ? "Item removido e devolvido ao estoque." : "Insumo corrigido e estoque ajustado.");
+  return true;
+}
+
+async function salvarInsumoConsumidoCorrigido(itemId) {
+  await executarCorrecaoInsumoConsumido(itemId);
+}
+
+async function removerInsumoConsumido(itemId) {
+  await executarCorrecaoInsumoConsumido(itemId, 0);
+}
+
 /* -----------------------------
    STATUS DOS LOTES
    ----------------------------- */
@@ -591,6 +852,11 @@ async function salvarDryHop() {
 
   document.getElementById("dryObs").value = "";
   document.getElementById("dryLupulos").innerHTML = "";
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+  }
   adicionarLinhaInsumo("dryLupulos","LUPULO");
   marcarFormularioLimpo("formDryHop");
 
@@ -640,6 +906,7 @@ function renderProducoes() {
                 ? `<button class="btnTiny btnEdit" onclick="abrirEnvaseDoLote('${p.id}')">Registrar envase</button>`
                 : ""
             }
+            <button class="btnTiny btnWarn" data-editar-modulo="producao" onclick="abrirEdicaoDaProducao('${p.id}')">Corrigir dados</button>
             <button class="btnTiny" onclick="abrirFichaLoteDaProducao('${p.id}')">Ver ficha</button>
           </div>
         </div>
@@ -955,12 +1222,12 @@ function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermento
     || Boolean(lote.volume_informado_em);
 
   eventos.push({
-    data:lote.criado_em || lote.data_producao,
+    data:lote.data_producao || lote.criado_em,
     titulo:iniciouSemVolume ? "Produção iniciada" : "Produção registrada",
     texto:iniciouSemVolume
       ? "Insumos registrados; volume produzido pendente"
       : `${fmt(lote.litros_produzidos)} L produzidos`,
-    ordem:dataParaOrdenacao(lote.criado_em || lote.data_producao)
+    ordem:dataParaOrdenacao(lote.data_producao || lote.criado_em)
   });
 
   if (lote.volume_informado_em && !volumeProducaoPendente(lote)) {
@@ -1029,11 +1296,24 @@ function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermento
   });
 
   movimentosRows
-    .filter(m => m.tipo === "STATUS LOTE")
+    .filter(m => [
+      "STATUS LOTE",
+      "CORRECAO DATA PRODUCAO",
+      "CORRECAO INSUMO ESTORNO",
+      "CORRECAO INSUMO BAIXA"
+    ].includes(m.tipo))
     .forEach(m => eventos.push({
       data:m.criado_em,
-      titulo:"Mudança de status",
-      texto:m.observacao || "",
+      titulo:m.tipo === "STATUS LOTE"
+        ? "Mudança de status"
+        : m.tipo === "CORRECAO DATA PRODUCAO"
+          ? "Correção da data de produção"
+          : m.tipo === "CORRECAO INSUMO ESTORNO"
+            ? "Correção de insumo — devolução"
+            : "Correção de insumo — nova baixa",
+      texto:m.tipo.startsWith("CORRECAO INSUMO")
+        ? `${m.item_nome}: ${fmt(Math.abs(m.quantidade),3)} ${m.unidade || ""} • ${m.observacao || ""}`
+        : m.observacao || "",
       ordem:dataParaOrdenacao(m.criado_em)
     }));
 
@@ -1149,6 +1429,7 @@ async function abrirFichaLote(id) {
 
     <div class="loteStatusActions">
       <span class="statusBadge ${classeStatusLote(lote.status)}">${escapeHtml(rotuloStatusLote(lote.status))}</span>
+      <button class="btnTiny btnWarn" data-editar-modulo="producao" onclick="abrirEdicaoDaProducao('${lote.id}')">Corrigir produção</button>
       ${
         volumePendente
           ? `<button class="btnTiny btnEdit" onclick="abrirVolumeDaProducao('${lote.id}')">Informar litros produzidos</button>`

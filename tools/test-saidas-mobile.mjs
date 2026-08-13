@@ -31,8 +31,8 @@ exigir(
   "textos longos da saída não estão autorizados a quebrar linha"
 );
 exigir(
-  html.includes("styles.css?v=producao-duas-etapas-dashboard-20260730") &&
-    app.includes('APP_BUILD = "producao-duas-etapas-dashboard-20260730"'),
+  html.includes("styles.css?v=seletores-com-saldo-20260813") &&
+    app.includes('APP_BUILD = "seletores-com-saldo-20260813"'),
   "a versão de cache do conserto móvel não foi atualizada"
 );
 

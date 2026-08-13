@@ -73,8 +73,9 @@ Para uma instalação nova:
 4. Execute `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql`.
 5. Execute `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`.
 6. Execute `11_PRODUCAO_EM_DUAS_ETAPAS.sql`.
-7. Configure os provedores de autenticação desejados no Supabase.
-8. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
+7. Execute `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`.
+8. Configure os provedores de autenticação desejados no Supabase.
+9. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
    usuários já existentes no momento da instalação em administradores ativos.
 
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
@@ -95,6 +96,11 @@ cancelados por inteiro.
 Depois do SQL 10, execute `11_PRODUCAO_EM_DUAS_ETAPAS.sql` para permitir que
 uma produção seja iniciada com a baixa dos insumos e tenha o volume realmente
 produzido informado depois. Essa segunda etapa não repete a baixa dos insumos.
+
+Depois do SQL 11, execute `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql` para
+corrigir a data da produção ou insumos da produção/dry hopping sem estornar o
+lote inteiro. A correção devolve o consumo anterior, baixa o valor corrigido e
+registra o motivo no histórico dentro de uma única operação.
 
 ### Migração dos dados antigos
 
@@ -141,4 +147,5 @@ perfis e permissões devem sempre preservar as políticas presentes em
 `07_PAGAMENTO_PHENOMENA_FIFO.sql` e
 `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql` e
 `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql` e
-`11_PRODUCAO_EM_DUAS_ETAPAS.sql`.
+`11_PRODUCAO_EM_DUAS_ETAPAS.sql` e
+`12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`.
