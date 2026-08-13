@@ -20,6 +20,32 @@ const STATUS_LOTE_OPCOES = [
   "FINALIZADO"
 ];
 
+function prepararSelectTanques(id, producaoAtual=null) {
+  const select = document.getElementById(id);
+  if (!select) return;
+
+  select.innerHTML = '<option value="">Selecionar tanque...</option>';
+  const validarOcupacao = !producaoAtual
+    || STATUS_LOTE_ATIVOS_OP.includes(producaoAtual.status);
+
+  for (let tanque=1; tanque<=5; tanque++) {
+    const ocupante = validarOcupacao
+      ? state.producoesFermentando.find(p =>
+          p.id !== producaoAtual?.id && Number(p.tanque || 0) === tanque
+        )
+      : null;
+    const opcao = document.createElement("option");
+    opcao.value = String(tanque);
+    opcao.textContent = ocupante
+      ? `Tanque ${tanque} — ocupado por ${ocupante.cerveja_nome}, lote ${ocupante.lote}`
+      : `Tanque ${tanque}`;
+    opcao.disabled = Boolean(ocupante);
+    select.appendChild(opcao);
+  }
+
+  select.value = producaoAtual?.tanque ? String(producaoAtual.tanque) : "";
+}
+
 function rotuloStatusLote(status) {
   const mapa = {
     INSUMOS_REGISTRADOS:"Volume pendente",
@@ -132,6 +158,7 @@ function toggleForm(id) {
 
 async function prepararFormProducao() {
   await carregarBaseCadastros();
+  await carregarProducoesFermentando(true);
   try {
     await carregarInsumosComSaldo();
   } catch(e) {
@@ -139,6 +166,7 @@ async function prepararFormProducao() {
     mostrarErro("prodErro", "N\u00e3o foi poss\u00edvel consultar o estoque de insumos: " + e.message);
   }
   prepararSelectCervejas("prodCerveja");
+  prepararSelectTanques("prodTanque");
   prepararSelectInsumos("prodFermento","FERMENTO","Sem fermento");
 
   await carregarFermentosReusoBase(true);
@@ -160,6 +188,7 @@ function atualizarResumoProducao() {
 
   const lote = document.getElementById("prodLote")?.value.trim() || "-";
   const cerveja = document.getElementById("prodCerveja")?.value || "Não selecionada";
+  const tanque = document.getElementById("prodTanque")?.value || "";
   const litros = Number(document.getElementById("prodLitros")?.value || 0);
   const maltes = coletarLinhasInsumos("prodMaltes","MALTE");
   const lupulos = coletarLinhasInsumos("prodLupulos","LUPULO");
@@ -173,6 +202,7 @@ function atualizarResumoProducao() {
     <div class="envaseSaldoGrid">
       <div><span>Cerveja</span><strong>${escapeHtml(cerveja)}</strong></div>
       <div><span>Lote</span><strong>${escapeHtml(lote)}</strong></div>
+      <div><span>Tanque</span><strong>${tanque ? `Tanque ${escapeHtml(tanque)}` : "Não selecionado"}</strong></div>
       <div><span>Volume</span><strong>${litros > 0 ? `${fmt(litros)} L` : "Pendente"}</strong></div>
       <div><span>Insumos</span><strong>${maltes.length} malte(s) • ${lupulos.length} lúpulo(s)</strong></div>
     </div>
@@ -185,11 +215,12 @@ async function salvarProducao() {
 
   const lote = document.getElementById("prodLote").value.trim();
   const cerveja_nome = document.getElementById("prodCerveja").value;
+  const tanque = Number(document.getElementById("prodTanque").value || 0);
   const litros_produzidos = Number(document.getElementById("prodLitros").value || 0);
   const observacao = document.getElementById("prodObs").value.trim();
 
-  if (!lote || !cerveja_nome || litros_produzidos < 0) {
-    mostrarErro("prodErro", "Informe lote e cerveja. O volume não pode ser negativo.");
+  if (!lote || !cerveja_nome || !Number.isInteger(tanque) || tanque < 1 || tanque > 5 || litros_produzidos < 0) {
+    mostrarErro("prodErro", "Informe lote, cerveja e um tanque de 1 a 5. O volume não pode ser negativo.");
     return;
   }
 
@@ -259,6 +290,7 @@ async function salvarProducao() {
 
   let resumo = `CONFIRMAR PRODUÇÃO\n\n`;
   resumo += `${cerveja_nome} — lote ${lote}\n`;
+  resumo += `Tanque: ${tanque}\n`;
   resumo += `Volume: ${litros_produzidos > 0 ? `${fmt(litros_produzidos)} L` : "pendente — informar depois"}\n`;
   resumo += `Maltes: ${maltes.length ? maltes.map(i => `${i.nome} ${fmt(i.quantidade,3)} ${i.unidade}`).join(", ") : "nenhum"}\n`;
   resumo += `Lúpulos: ${lupulos.length ? lupulos.map(i => `${i.nome} ${fmt(i.quantidade,3)} ${i.unidade}`).join(", ") : "nenhum"}\n`;
@@ -281,9 +313,10 @@ async function salvarProducao() {
   }
 
   try {
-    const { error } = await sb.rpc("erp_iniciar_producao", {
+    const { error } = await sb.rpc("erp_iniciar_producao_com_tanque", {
       p_lote:lote,
       p_cerveja_nome:cerveja_nome,
+      p_tanque:tanque,
       p_litros_produzidos:litros_produzidos,
       p_observacao:observacao || null,
       p_fermento_tipo:fermentoTipoSalvar,
@@ -309,8 +342,8 @@ async function salvarProducao() {
     );
     mostrarErro(
       "prodErro",
-      mensagem.includes("erp_iniciar_producao")
-        ? "A atualização SQL 11 de produção em duas etapas ainda não foi aplicada no Supabase."
+      mensagem.includes("erp_iniciar_producao_com_tanque")
+        ? "A atualização SQL 13 de tanques ainda não foi aplicada no Supabase."
         : mensagem
     );
     return;
@@ -321,7 +354,7 @@ async function salvarProducao() {
     }
   }
 
-  ["prodLote","prodLitros","prodObs","prodFermentoQtd","prodFermentoReusoQtd"]
+  ["prodLote","prodTanque","prodLitros","prodObs","prodFermentoQtd","prodFermentoReusoQtd"]
     .forEach(id => document.getElementById(id).value = "");
 
   document.getElementById("prodCerveja").value = "";
@@ -345,13 +378,15 @@ async function salvarProducao() {
     "lotes","painelDia","auditoria"
   );
 
+  await carregarProducao(true);
+  prepararSelectTanques("prodTanque");
+  await carregarInicio(true);
+
   alert(
     litros_produzidos > 0
       ? "Produção salva, volume registrado e insumos baixados."
       : "Insumos baixados. O volume desta produção ficou pendente."
   );
-  carregarProducao(true);
-  carregarInicio(true);
 }
 
 async function prepararFormVolumeProducao(producaoId="") {
@@ -366,7 +401,7 @@ async function prepararFormVolumeProducao(producaoId="") {
   pendentes.forEach(p => {
     const op = document.createElement("option");
     op.value = p.id;
-    op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${dataBR(p.data_producao)})`;
+    op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${dataBR(p.data_producao)})${p.tanque ? ` — Tanque ${p.tanque}` : ""}`;
     sel.appendChild(op);
   });
 
@@ -472,6 +507,7 @@ async function salvarVolumeProducao() {
 async function prepararFormEdicaoProducao(producaoId="") {
   await carregarBaseCadastros(true);
   await carregarLotes(true);
+  await carregarProducoesFermentando(true);
   mostrarErro("editarProducaoErro", "");
   let erroDisponibilidade = "";
   try {
@@ -488,7 +524,7 @@ async function prepararFormEdicaoProducao(producaoId="") {
   state.lotes.forEach(p => {
     const op = document.createElement("option");
     op.value = p.id;
-    op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${dataBR(p.data_producao)})`;
+    op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${dataBR(p.data_producao)})${p.tanque ? ` — Tanque ${p.tanque}` : ""}`;
     sel.appendChild(op);
   });
 
@@ -576,6 +612,7 @@ async function carregarEdicaoProducaoSelecionada() {
 
   conteudo.style.display = "block";
   document.getElementById("editarProducaoData").value = producao.data_producao || "";
+  prepararSelectTanques("editarProducaoTanque", producao);
   boxProducao.innerHTML = '<div class="sub">Carregando insumos...</div>';
   boxDry.innerHTML = '<div class="sub">Carregando dry hopping...</div>';
 
@@ -660,6 +697,55 @@ async function salvarDataProducaoCorrigida() {
   await carregarLotes(true);
   await prepararFormEdicaoProducao(producaoId);
   alert("Data da produção corrigida e registrada no histórico.");
+}
+
+async function salvarTanqueProducaoCorrigido() {
+  mostrarErro("editarProducaoErro", "");
+
+  const producaoId = document.getElementById("editarProducaoLote")?.value;
+  const tanqueNovo = Number(document.getElementById("editarProducaoTanque")?.value || 0);
+  const motivo = motivoCorrecaoProducao();
+
+  if (!producaoId || !motivo || !Number.isInteger(tanqueNovo) || tanqueNovo < 1 || tanqueNovo > 5) {
+    mostrarErro("editarProducaoErro", "Selecione a produção, um tanque de 1 a 5 e informe o motivo da correção.");
+    return;
+  }
+
+  const producao = state.lotes.find(p => p.id === producaoId);
+  const tanqueAnterior = producao?.tanque ? `Tanque ${producao.tanque}` : "não informado";
+  if (!confirm(
+    `CORRIGIR TANQUE DA PRODUÇÃO?\n\n${producao?.cerveja_nome || ""} — lote ${producao?.lote || ""}\nDe: ${tanqueAnterior}\nPara: Tanque ${tanqueNovo}\n\nMotivo: ${motivo}`
+  )) return;
+
+  const btn = document.getElementById("editarProducaoTanqueBtn");
+  btn.disabled = true;
+  btn.innerText = "Salvando...";
+
+  try {
+    const { error } = await sb.rpc("erp_editar_tanque_producao", {
+      p_producao_id:producaoId,
+      p_tanque:tanqueNovo,
+      p_motivo:motivo
+    });
+    if (error) throw error;
+  } catch(e) {
+    const mensagem = String(e?.message || e || "Não foi possível corrigir o tanque.");
+    mostrarErro(
+      "editarProducaoErro",
+      mensagem.includes("erp_editar_tanque_producao")
+        ? "A atualização SQL 13 de tanques ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+    return;
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Salvar tanque";
+  }
+
+  invalidar("producao","producoesFermentando","lotes","inicio","painelDia","auditoria");
+  await carregarLotes(true);
+  await prepararFormEdicaoProducao(producaoId);
+  alert("Tanque da produção corrigido e registrado no histórico.");
 }
 
 async function executarCorrecaoInsumoConsumido(itemId, quantidadeForcada=null) {
@@ -869,6 +955,11 @@ async function salvarDryHop() {
   carregarProducao(true);
 }
 
+function rotuloTanqueProducao(producao) {
+  const tanque = String(producao?.tanque || "").trim();
+  return tanque ? `Tanque ${tanque}` : "Tanque não informado";
+}
+
 function renderProducoes() {
   const box = document.getElementById("listaProducoes");
 
@@ -889,7 +980,7 @@ function renderProducoes() {
       <div class="item searchable">
         <div>
           <strong>${escapeHtml(p.cerveja_nome)} — lote ${escapeHtml(p.lote)}</strong>
-          <div class="sub">${rotuloVolumeProducao(p)} • Iniciada em ${dataBR(p.data_producao)} • ${dias} dia(s)</div>
+          <div class="sub">${rotuloVolumeProducao(p)} • ${escapeHtml(rotuloTanqueProducao(p))} • Iniciada em ${dataBR(p.data_producao)} • ${dias} dia(s)</div>
           <div class="loteStatusActions">
             ${
               volumePendente
@@ -1195,7 +1286,7 @@ function renderListaLotes() {
       <div class="item searchable">
         <div>
           <strong>${escapeHtml(l.cerveja_nome)} — lote ${escapeHtml(l.lote)}</strong>
-          <div class="sub">${rotuloVolumeProducao(l)} • ${dataBR(l.data_producao)} • ${dias} dia(s)</div>
+          <div class="sub">${rotuloVolumeProducao(l)} • ${escapeHtml(rotuloTanqueProducao(l))} • ${dataBR(l.data_producao)} • ${dias} dia(s)</div>
           <div class="loteStatusActions">
             <button class="btnTiny btnEdit" onclick="abrirFichaLote('${l.id}')">Ver ficha e linha do tempo</button>
             ${
@@ -1299,6 +1390,7 @@ function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermento
     .filter(m => [
       "STATUS LOTE",
       "CORRECAO DATA PRODUCAO",
+      "CORRECAO TANQUE PRODUCAO",
       "CORRECAO INSUMO ESTORNO",
       "CORRECAO INSUMO BAIXA"
     ].includes(m.tipo))
@@ -1308,6 +1400,8 @@ function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermento
         ? "Mudança de status"
         : m.tipo === "CORRECAO DATA PRODUCAO"
           ? "Correção da data de produção"
+          : m.tipo === "CORRECAO TANQUE PRODUCAO"
+            ? "Correção do tanque da produção"
           : m.tipo === "CORRECAO INSUMO ESTORNO"
             ? "Correção de insumo — devolução"
             : "Correção de insumo — nova baixa",
@@ -1425,7 +1519,7 @@ async function abrirFichaLote(id) {
 
   conteudo.innerHTML = `
     <div class="loteFichaTitulo">${escapeHtml(lote.cerveja_nome)} — lote ${escapeHtml(lote.lote)}</div>
-    <div class="muted">Iniciada em ${dataBR(lote.data_producao)} • ${rotuloVolumeProducao(lote)}</div>
+    <div class="muted">Iniciada em ${dataBR(lote.data_producao)} • ${rotuloVolumeProducao(lote)} • ${escapeHtml(rotuloTanqueProducao(lote))}</div>
 
     <div class="loteStatusActions">
       <span class="statusBadge ${classeStatusLote(lote.status)}">${escapeHtml(rotuloStatusLote(lote.status))}</span>
@@ -1816,13 +1910,13 @@ async function executarBuscaGlobal() {
 
   (producoes.data || []).forEach(p => {
     if (textoContemBusca(
-      [p.lote,p.cerveja_nome,p.status,p.fermento_nome,p.observacao],
+      [p.lote,p.cerveja_nome,p.tanque,p.status,p.fermento_nome,p.observacao],
       termo
     )) {
       resultados.push({
         tipo:"Lote",
         titulo:`${p.cerveja_nome} — lote ${p.lote}`,
-        detalhe:`${rotuloStatusLote(p.status)} • ${rotuloVolumeProducao(p)} • ${dataBR(p.data_producao)}`,
+        detalhe:`${rotuloStatusLote(p.status)} • ${rotuloVolumeProducao(p)} • ${rotuloTanqueProducao(p)} • ${dataBR(p.data_producao)}`,
         acao:`abrirResultadoLote('${p.id}')`
       });
     }

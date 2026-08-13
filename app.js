@@ -1,5 +1,5 @@
 
-const APP_BUILD = "seletores-com-saldo-20260813";
+const APP_BUILD = "tanques-producao-20260813";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -673,7 +673,7 @@ function prepararSelectLotes(id) {
       op.value = p.id;
       op.dataset.lote = p.lote;
       op.dataset.cerveja = p.cerveja_nome;
-      op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${fmt(p.litros_produzidos)}L)`;
+      op.textContent = `${p.cerveja_nome} — lote ${p.lote} (${fmt(p.litros_produzidos)}L)${p.tanque ? ` — Tanque ${p.tanque}` : ""}`;
       sel.appendChild(op);
     });
 }

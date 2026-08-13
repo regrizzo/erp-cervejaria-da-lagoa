@@ -27,7 +27,7 @@ como origem para novas alterações.
 - login por e-mail e Google;
 - aprovação de usuários, perfis e permissões;
 - dashboard operacional;
-- produção, lotes, dry hopping e envase;
+- produção, lotes, tanques de 1 a 5, dry hopping e envase;
 - estoque de cervejas, insumos e barris incompletos;
 - clientes, saídas, retornos e códigos de barris;
 - fermento reutilizável;
@@ -74,8 +74,9 @@ Para uma instalação nova:
 5. Execute `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`.
 6. Execute `11_PRODUCAO_EM_DUAS_ETAPAS.sql`.
 7. Execute `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`.
-8. Configure os provedores de autenticação desejados no Supabase.
-9. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
+8. Execute `13_TANQUES_PRODUCAO.sql`.
+9. Configure os provedores de autenticação desejados no Supabase.
+10. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
    usuários já existentes no momento da instalação em administradores ativos.
 
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
@@ -101,6 +102,10 @@ Depois do SQL 11, execute `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql` para
 corrigir a data da produção ou insumos da produção/dry hopping sem estornar o
 lote inteiro. A correção devolve o consumo anterior, baixa o valor corrigido e
 registra o motivo no histórico dentro de uma única operação.
+
+Depois do SQL 12, execute `13_TANQUES_PRODUCAO.sql` para vincular cada nova
+produção a um dos cinco tanques. O tanque pode ser corrigido com motivo
+registrado, e duas produções em andamento não podem ocupar o mesmo tanque.
 
 ### Migração dos dados antigos
 
@@ -148,4 +153,5 @@ perfis e permissões devem sempre preservar as políticas presentes em
 `08_RETIRADA_PHENOMENA_VOLUME_REAL.sql` e
 `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql` e
 `11_PRODUCAO_EM_DUAS_ETAPAS.sql` e
-`12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`.
+`12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql` e
+`13_TANQUES_PRODUCAO.sql`.

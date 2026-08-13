@@ -14,6 +14,7 @@ Execute apenas:
 5. `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql`
 6. `11_PRODUCAO_EM_DUAS_ETAPAS.sql`
 7. `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`
+8. `13_TANQUES_PRODUCAO.sql`
 
 O primeiro arquivo consolida a estrutura original, envase detalhado, retornos,
 Phenomena, correções, restauração e controle de acesso. O segundo cria o
@@ -24,6 +25,7 @@ quinto protege valores de estoque, reforça a auditoria e torna atômicas as
 operações de entrada, saída, produção, envase e dry hopping. O sexto permite
 cadastrar e baixar os insumos antes de informar o volume realmente produzido.
 O sétimo permite corrigir a data e os insumos consumidos sem estornar o lote.
+O oitavo registra o tanque de 1 a 5 e impede ocupação simultânea por dois lotes.
 
 ## Banco existente
 
@@ -104,6 +106,19 @@ Depois do SQL 11, ative as correções pontuais:
 O SQL 12 permite alterar a data da produção e corrigir ou remover um insumo já
 consumido na produção ou no dry hopping. O estoque é ajustado somente pela
 diferença, a operação é atômica e o motivo fica registrado nas movimentações.
+
+### Tanques da produção
+
+Depois do SQL 12, ative o controle dos cinco tanques:
+
+1. faça e guarde um backup;
+2. execute `13_TANQUES_PRODUCAO.sql`;
+3. confirme que o Supabase mostrou sucesso;
+4. só então publique os arquivos atuais do site.
+
+O SQL 13 adiciona os tanques de 1 a 5 às produções. Novos lotes exigem um
+tanque disponível, alterações ficam registradas no histórico e o banco impede
+que duas produções em andamento ocupem o mesmo tanque.
 
 ## Arquivos históricos
 

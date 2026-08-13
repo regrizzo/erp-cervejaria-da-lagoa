@@ -7,6 +7,10 @@ const sql = fs.readFileSync(
   path.join(raiz, "11_PRODUCAO_EM_DUAS_ETAPAS.sql"),
   "utf8"
 );
+const sqlTanques = fs.readFileSync(
+  path.join(raiz, "13_TANQUES_PRODUCAO.sql"),
+  "utf8"
+);
 const operacoes = fs.readFileSync(
   path.join(raiz, "js", "operacoes.js"),
   "utf8"
@@ -70,9 +74,10 @@ exigir(
   "o retorno da segunda etapa não confirma a ausência de nova baixa"
 );
 exigir(
-  operacoes.includes('sb.rpc("erp_iniciar_producao"') &&
-    operacoes.includes('sb.rpc("erp_informar_volume_producao"'),
-  "a interface não chama as duas operações do SQL 11"
+  operacoes.includes('sb.rpc("erp_iniciar_producao_com_tanque"') &&
+    operacoes.includes('sb.rpc("erp_informar_volume_producao"') &&
+    /public\.erp_iniciar_producao\s*\(/.test(sqlTanques),
+  "a interface não preserva as duas operações do SQL 11 por meio do controle de tanques"
 );
 exigir(
   operacoes.includes('"INSUMOS_REGISTRADOS"') &&
