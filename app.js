@@ -1,5 +1,5 @@
 
-const APP_BUILD = "producao-duas-etapas-dashboard-20260730";
+const APP_BUILD = "correcoes-producao-20260813";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
