@@ -131,6 +131,13 @@ function toggleForm(id) {
    ----------------------------- */
 
 async function prepararFormProducao() {
+  await carregarBaseCadastros();
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+    mostrarErro("prodErro", "N\u00e3o foi poss\u00edvel consultar o estoque de insumos: " + e.message);
+  }
   prepararSelectCervejas("prodCerveja");
   prepararSelectInsumos("prodFermento","FERMENTO","Sem fermento");
 
@@ -138,13 +145,10 @@ async function prepararFormProducao() {
   prepararSelectFermentosReuso("prodFermentoReuso", "Selecionar fermento reutilizável...");
   alternarTipoFermentoProducao();
 
-  if (!document.querySelector("#prodMaltes .linhaInsumo")) {
-    adicionarLinhaInsumo("prodMaltes","MALTE");
-  }
-
-  if (!document.querySelector("#prodLupulos .linhaInsumo")) {
-    adicionarLinhaInsumo("prodLupulos","LUPULO");
-  }
+  document.getElementById("prodMaltes").innerHTML = "";
+  document.getElementById("prodLupulos").innerHTML = "";
+  adicionarLinhaInsumo("prodMaltes","MALTE");
+  adicionarLinhaInsumo("prodLupulos","LUPULO");
 
   atualizarResumoProducao();
   instalarProtecaoFormularios();
@@ -325,6 +329,11 @@ async function salvarProducao() {
   document.getElementById("prodFermentoReuso").value = "";
   document.getElementById("prodMaltes").innerHTML = "";
   document.getElementById("prodLupulos").innerHTML = "";
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+  }
   adicionarLinhaInsumo("prodMaltes","MALTE");
   adicionarLinhaInsumo("prodLupulos","LUPULO");
 
@@ -463,6 +472,14 @@ async function salvarVolumeProducao() {
 async function prepararFormEdicaoProducao(producaoId="") {
   await carregarBaseCadastros(true);
   await carregarLotes(true);
+  mostrarErro("editarProducaoErro", "");
+  let erroDisponibilidade = "";
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+    erroDisponibilidade = "N\u00e3o foi poss\u00edvel consultar o estoque de insumos: " + e.message;
+  }
 
   const sel = document.getElementById("editarProducaoLote");
   if (!sel) return;
@@ -480,8 +497,8 @@ async function prepararFormEdicaoProducao(producaoId="") {
   }
 
   document.getElementById("editarProducaoMotivo").value = "";
-  mostrarErro("editarProducaoErro", "");
   await carregarEdicaoProducaoSelecionada();
+  if (erroDisponibilidade) mostrarErro("editarProducaoErro", erroDisponibilidade);
   instalarProtecaoFormularios();
 }
 
@@ -499,7 +516,9 @@ async function abrirEdicaoDaProducao(id) {
 }
 
 function opcoesInsumosCorrecao(tipo, selecionado, unidadeAtual) {
-  const ativos = state.insumos.filter(i => i.tipo === tipo);
+  const ativos = state.insumos.filter(i =>
+    i.tipo === tipo && (i.nome === selecionado || insumoComSaldo(i.tipo, i.nome))
+  );
   const opcaoHistorica = ativos.some(i => i.nome === selecionado)
     ? ""
     : `<option value="${escapeHtml(selecionado)}" selected>${escapeHtml(selecionado)} (${escapeHtml(unidadeAtual)}) — histórico</option>`;
@@ -833,6 +852,11 @@ async function salvarDryHop() {
 
   document.getElementById("dryObs").value = "";
   document.getElementById("dryLupulos").innerHTML = "";
+  try {
+    await carregarInsumosComSaldo();
+  } catch(e) {
+    state.insumosComSaldo = new Set();
+  }
   adicionarLinhaInsumo("dryLupulos","LUPULO");
   marcarFormularioLimpo("formDryHop");
 

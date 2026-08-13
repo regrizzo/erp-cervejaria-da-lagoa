@@ -309,6 +309,11 @@ async function salvarSaidaMultipla() {
   document.getElementById("saidaResponsavel").value = "";
   document.getElementById("saidaObs").value = "";
   document.getElementById("saidaItens").innerHTML = "";
+  try {
+    await carregarCervejasSaidaComSaldo();
+  } catch(e) {
+    state.cervejasSaidaComSaldo = new Set();
+  }
   adicionarItemSaida();
 
   invalidar(
