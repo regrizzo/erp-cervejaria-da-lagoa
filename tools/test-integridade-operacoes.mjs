@@ -69,7 +69,7 @@ for (const rpc of [
 }
 
 exigir(
-  operacoes.includes('sb.rpc("erp_iniciar_producao"'),
+  operacoes.includes('sb.rpc("erp_iniciar_producao_com_tanque"'),
   "a interface operacional não chama a produção em duas etapas"
 );
 

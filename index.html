@@ -34,7 +34,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=seletores-com-saldo-20260813" />
+  <link rel="stylesheet" href="./styles.css?v=tanques-producao-20260813" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -282,6 +282,15 @@
             </div>
 
             <div class="fichaSecao">
+              <h4>Tanque da produção</h4>
+              <div class="correcaoDataLinha">
+                <select id="editarProducaoTanque"></select>
+                <button id="editarProducaoTanqueBtn" class="btnTiny btnEdit" type="button" data-editar-modulo="producao" onclick="salvarTanqueProducaoCorrigido()">Salvar tanque</button>
+              </div>
+              <div class="sub">Tanques ocupados por outro lote em andamento ficam indisponíveis.</div>
+            </div>
+
+            <div class="fichaSecao">
               <h4>Insumos usados na produção</h4>
               <div class="sub">Altere o item ou a quantidade. O sistema ajustará somente a diferença no estoque.</div>
               <div id="editarInsumosProducao" class="correcaoInsumosLista"></div>
@@ -306,6 +315,9 @@
 
           <label>Cerveja</label>
           <select id="prodCerveja" onchange="atualizarResumoProducao()"></select>
+
+          <label>Tanque</label>
+          <select id="prodTanque" onchange="atualizarResumoProducao()"></select>
 
           <label>Litros produzidos (opcional nesta etapa)</label>
           <input id="prodLitros" type="number" min="0" step="0.01" placeholder="Pode informar depois" oninput="atualizarResumoProducao()">
@@ -1287,9 +1299,9 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=seletores-com-saldo-20260813"></script>
-  <script src="./js/operacoes.js?v=seletores-com-saldo-20260813"></script>
-  <script src="./js/administracao.js?v=seletores-com-saldo-20260813"></script>
-  <script src="./js/acesso.js?v=seletores-com-saldo-20260813"></script>
+  <script src="./app.js?v=tanques-producao-20260813"></script>
+  <script src="./js/operacoes.js?v=tanques-producao-20260813"></script>
+  <script src="./js/administracao.js?v=tanques-producao-20260813"></script>
+  <script src="./js/acesso.js?v=tanques-producao-20260813"></script>
 </body>
 </html>

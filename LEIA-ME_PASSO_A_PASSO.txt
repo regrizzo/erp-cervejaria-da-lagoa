@@ -20,9 +20,11 @@ ATUALIZAÇÃO DE INTEGRIDADE E CONFIABILIDADE
    11_PRODUCAO_EM_DUAS_ETAPAS.sql
 4. Depois, execute:
    12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql
-5. Confirme que os três arquivos mostraram sucesso.
-6. Só depois publique os arquivos atuais do site.
-7. Atualize a página do ERP e faça os testes rápidos abaixo.
+5. Depois, execute:
+   13_TANQUES_PRODUCAO.sql
+6. Confirme que os quatro arquivos mostraram sucesso.
+7. Só depois publique os arquivos atuais do site.
+8. Atualize a página do ERP e faça os testes rápidos abaixo.
 
 O SQL 10 não apaga o histórico. Ele protege novos registros contra valores
 inválidos e transforma entrada de cerveja, saída múltipla, produção, envase e
@@ -35,6 +37,9 @@ novamente.
 
 O SQL 12 permite corrigir a data e os insumos da produção ou do dry hopping.
 Ele ajusta apenas a diferença no estoque e registra o motivo da correção.
+
+O SQL 13 permite escolher um dos tanques de 1 a 5 em cada produção, editar o
+tanque com motivo registrado e impede dois lotes em andamento no mesmo tanque.
 
 TESTE RÁPIDO DEPOIS DA ATUALIZAÇÃO
 
