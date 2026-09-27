@@ -15,6 +15,7 @@ Execute apenas:
 6. `11_PRODUCAO_EM_DUAS_ETAPAS.sql`
 7. `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`
 8. `13_TANQUES_PRODUCAO.sql`
+9. `14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql`
 
 O primeiro arquivo consolida a estrutura original, envase detalhado, retornos,
 Phenomena, correções, restauração e controle de acesso. O segundo cria o
@@ -26,6 +27,7 @@ operações de entrada, saída, produção, envase e dry hopping. O sexto permit
 cadastrar e baixar os insumos antes de informar o volume realmente produzido.
 O sétimo permite corrigir a data e os insumos consumidos sem estornar o lote.
 O oitavo registra o tanque de 1 a 5 e impede ocupação simultânea por dois lotes.
+O nono separa a baixa de cerveja por Produção ou Itapema e permite entradas em lote.
 
 ## Banco existente
 
@@ -119,6 +121,19 @@ Depois do SQL 12, ative o controle dos cinco tanques:
 O SQL 13 adiciona os tanques de 1 a 5 às produções. Novos lotes exigem um
 tanque disponível, alterações ficam registradas no histórico e o banco impede
 que duas produções em andamento ocupem o mesmo tanque.
+
+### Origem das saídas e entradas múltiplas
+
+Depois do SQL 13, ative os lançamentos em lote e a origem explícita:
+
+1. faça e guarde um backup;
+2. execute `14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql`;
+3. confirme que as três colunas da conferência final retornaram `true`;
+4. só então publique os arquivos atuais do site.
+
+O SQL 14 permite escolher Produção ou Itapema em cada cerveja da saída comum.
+Ele impede que esse fluxo baixe a Phenomena e permite registrar várias cervejas
+de Itapema ou vários insumos de uma vez, cancelando o lote inteiro se um item falhar.
 
 ## Arquivos históricos
 

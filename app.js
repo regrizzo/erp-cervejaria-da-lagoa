@@ -1,5 +1,5 @@
 
-const APP_BUILD = "tanques-producao-20260813";
+const APP_BUILD = "origem-saidas-entradas-multiplas-20260927";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
@@ -29,6 +29,7 @@ const state = {
   clientes: [],
   insumosComSaldo: new Set(),
   cervejasSaidaComSaldo: new Set(),
+  estoqueSaidaPorCerveja: new Map(),
   cervejasPhenomenaComSaldo: new Set(),
   producoesFermentando: [],
   fermentosReuso: [],
@@ -700,14 +701,20 @@ async function carregarInsumosComSaldo() {
 
 async function carregarCervejasSaidaComSaldo() {
   const { data, error } = await sb.from("estoque_cerveja")
-    .select("cerveja_nome,q10,q20,q30,q50")
-    .in("origem", ["PRODUCAO","ITAPEMA","PHENOMENA"]);
+    .select("cerveja_nome,origem,q10,q20,q30,q50")
+    .in("origem", ["PRODUCAO","ITAPEMA"]);
 
   if (error) throw error;
+  state.estoqueSaidaPorCerveja = new Map();
+  (data || [])
+    .filter(item => somaBarris(item.q10,item.q20,item.q30,item.q50) > 0)
+    .forEach(item => {
+      const linhas = state.estoqueSaidaPorCerveja.get(item.cerveja_nome) || [];
+      linhas.push(item);
+      state.estoqueSaidaPorCerveja.set(item.cerveja_nome, linhas);
+    });
   state.cervejasSaidaComSaldo = new Set(
-    (data || [])
-      .filter(item => somaBarris(item.q10,item.q20,item.q30,item.q50) > 0)
-      .map(item => item.cerveja_nome)
+    state.estoqueSaidaPorCerveja.keys()
   );
 }
 
@@ -758,11 +765,15 @@ async function prepararFormDryHop() {
 
 
 function prepararFormEntradaCerveja() {
-  prepararSelectCervejas("entradaCerveja");
+  const container = document.getElementById("entradaCervejaItens");
+  container.innerHTML = "";
+  adicionarEntradaCervejaItem();
 }
 
 function prepararFormEntradaInsumo() {
-  popularEntradaInsumos();
+  const container = document.getElementById("entradaInsumoItens");
+  container.innerHTML = "";
+  adicionarEntradaInsumoItem();
 }
 
 function prepararSelectInsumos(id, tipo, placeholder) {
@@ -1172,92 +1183,195 @@ async function somarEstoqueCerveja(cerveja_nome, origem, q10,q20,q30,q50, observ
 }
 
 
-function popularEntradaInsumos() {
-  const tipo = document.getElementById("entradaInsumoTipo").value;
-  const sel = document.getElementById("entradaInsumoNome");
-  sel.innerHTML = '<option value="">Selecionar insumo...</option>';
-  state.insumos.filter(i => i.tipo === tipo).forEach(i => {
-    const op = document.createElement("option");
-    op.value = i.nome;
-    op.textContent = `${i.nome} (${i.unidade})`;
-    op.dataset.unidade = i.unidade;
-    op.dataset.fornecedor = i.fornecedor_padrao || "";
-    sel.appendChild(op);
+function renumerarCartoes(containerId, seletor, prefixo) {
+  document.querySelectorAll(`#${containerId} ${seletor}`).forEach((item, indice) => {
+    const titulo = item.querySelector(".entradaItemTitulo");
+    if (titulo) titulo.textContent = `${prefixo} ${indice + 1}`;
   });
-  sel.onchange = () => {
-    const op = sel.options[sel.selectedIndex];
-    if (op) document.getElementById("entradaInsumoFornecedor").value = op.dataset.fornecedor || "";
-  };
+}
+
+function removerCartaoEntrada(botao, containerId, seletor, prefixo) {
+  botao.closest(seletor)?.remove();
+  renumerarCartoes(containerId, seletor, prefixo);
+}
+
+function adicionarEntradaCervejaItem() {
+  const container = document.getElementById("entradaCervejaItens");
+  if (!container) return;
+
+  const div = document.createElement("div");
+  div.className = "entradaLoteItem entradaCervejaItem";
+  div.innerHTML = `
+    <div class="saidaItemHeader">
+      <strong class="entradaItemTitulo"></strong>
+      <button type="button" class="smallDanger" onclick="removerCartaoEntrada(this,'entradaCervejaItens','.entradaCervejaItem','Cerveja')">Remover</button>
+    </div>
+    <label>Cerveja</label>
+    <select class="entradaCervejaNome"></select>
+    <div class="linha2">
+      <div><label>Barris 10L</label><input class="entradaCervejaQ10" type="number" min="0" value="0"></div>
+      <div><label>Barris 20L</label><input class="entradaCervejaQ20" type="number" min="0" value="0"></div>
+    </div>
+    <div class="linha2">
+      <div><label>Barris 30L</label><input class="entradaCervejaQ30" type="number" min="0" value="0"></div>
+      <div><label>Barris 50L</label><input class="entradaCervejaQ50" type="number" min="0" value="0"></div>
+    </div>
+  `;
+  container.appendChild(div);
+
+  const select = div.querySelector(".entradaCervejaNome");
+  select.innerHTML = '<option value="">Selecionar cerveja...</option>';
+  state.cervejas.forEach(cerveja => {
+    const opcao = document.createElement("option");
+    opcao.value = cerveja.nome;
+    opcao.textContent = cerveja.nome;
+    select.appendChild(opcao);
+  });
+  renumerarCartoes("entradaCervejaItens", ".entradaCervejaItem", "Cerveja");
+}
+
+function coletarEntradasCerveja() {
+  return [...document.querySelectorAll("#entradaCervejaItens .entradaCervejaItem")]
+    .map(div => ({
+      cerveja_nome:div.querySelector(".entradaCervejaNome").value,
+      q10:Number(div.querySelector(".entradaCervejaQ10").value || 0),
+      q20:Number(div.querySelector(".entradaCervejaQ20").value || 0),
+      q30:Number(div.querySelector(".entradaCervejaQ30").value || 0),
+      q50:Number(div.querySelector(".entradaCervejaQ50").value || 0)
+    }))
+    .filter(item => item.cerveja_nome || somaBarris(item.q10,item.q20,item.q30,item.q50) > 0);
+}
+
+function popularEntradaInsumos(linha) {
+  if (!linha) return;
+  const tipo = linha.querySelector(".entradaInsumoTipo").value;
+  const select = linha.querySelector(".entradaInsumoNome");
+  select.innerHTML = '<option value="">Selecionar insumo...</option>';
+  state.insumos.filter(i => i.tipo === tipo).forEach(insumo => {
+    const opcao = document.createElement("option");
+    opcao.value = insumo.nome;
+    opcao.textContent = `${insumo.nome} (${insumo.unidade})`;
+    opcao.dataset.fornecedor = insumo.fornecedor_padrao || "";
+    select.appendChild(opcao);
+  });
+}
+
+function preencherFornecedorEntradaInsumo(linha) {
+  const select = linha.querySelector(".entradaInsumoNome");
+  const opcao = select.options[select.selectedIndex];
+  const fornecedor = linha.querySelector(".entradaInsumoFornecedor");
+  if (fornecedor && !fornecedor.value.trim()) {
+    fornecedor.value = opcao?.dataset.fornecedor || "";
+  }
+}
+
+function adicionarEntradaInsumoItem() {
+  const container = document.getElementById("entradaInsumoItens");
+  if (!container) return;
+
+  const div = document.createElement("div");
+  div.className = "entradaLoteItem entradaInsumoItem";
+  div.innerHTML = `
+    <div class="saidaItemHeader">
+      <strong class="entradaItemTitulo"></strong>
+      <button type="button" class="smallDanger" onclick="removerCartaoEntrada(this,'entradaInsumoItens','.entradaInsumoItem','Insumo')">Remover</button>
+    </div>
+    <div class="linha2">
+      <div>
+        <label>Tipo</label>
+        <select class="entradaInsumoTipo">
+          <option value="MALTE">Malte</option>
+          <option value="LUPULO">Lúpulo</option>
+          <option value="FERMENTO">Fermento</option>
+        </select>
+      </div>
+      <div>
+        <label>Insumo</label>
+        <select class="entradaInsumoNome"></select>
+      </div>
+    </div>
+    <div class="linha2">
+      <div><label>Quantidade</label><input class="entradaInsumoQtd" type="number" min="0" step="0.001"></div>
+      <div><label>Valor total</label><input class="entradaInsumoValor" type="number" min="0" step="0.01"></div>
+    </div>
+    <label>Fornecedor</label>
+    <input class="entradaInsumoFornecedor">
+    <div class="linha2">
+      <div><label>Validade</label><input class="entradaInsumoValidade" type="date"></div>
+      <div><label>Lote fornecedor</label><input class="entradaInsumoLote"></div>
+    </div>
+  `;
+  container.appendChild(div);
+
+  const tipo = div.querySelector(".entradaInsumoTipo");
+  const nome = div.querySelector(".entradaInsumoNome");
+  tipo.addEventListener("change", () => popularEntradaInsumos(div));
+  nome.addEventListener("change", () => preencherFornecedorEntradaInsumo(div));
+  popularEntradaInsumos(div);
+  renumerarCartoes("entradaInsumoItens", ".entradaInsumoItem", "Insumo");
+}
+
+function coletarEntradasInsumo() {
+  return [...document.querySelectorAll("#entradaInsumoItens .entradaInsumoItem")]
+    .map(div => ({
+      tipo:div.querySelector(".entradaInsumoTipo").value,
+      nome:div.querySelector(".entradaInsumoNome").value,
+      quantidade:Number(div.querySelector(".entradaInsumoQtd").value || 0),
+      fornecedor:div.querySelector(".entradaInsumoFornecedor").value.trim(),
+      valor_total:Number(div.querySelector(".entradaInsumoValor").value || 0),
+      validade:div.querySelector(".entradaInsumoValidade").value || null,
+      lote_fornecedor:div.querySelector(".entradaInsumoLote").value.trim()
+    }))
+    .filter(item => item.nome || item.quantidade > 0);
 }
 
 async function salvarEntradaInsumo() {
   mostrarErro("entradaInsumoErro", "");
-  const tipo = document.getElementById("entradaInsumoTipo").value;
-  const nome = document.getElementById("entradaInsumoNome").value;
-  const quantidade = Number(document.getElementById("entradaInsumoQtd").value || 0);
-  const fornecedor = document.getElementById("entradaInsumoFornecedor").value.trim();
-  const valor_total = Number(document.getElementById("entradaInsumoValor").value || 0);
-  const validade = document.getElementById("entradaInsumoValidade").value || null;
-  const lote_fornecedor = document.getElementById("entradaInsumoLote").value.trim();
+  const itens = coletarEntradasInsumo();
   const observacao = document.getElementById("entradaInsumoObs").value.trim();
 
-  if (!nome || quantidade <= 0) {
-    mostrarErro("entradaInsumoErro", "Selecione o insumo e informe a quantidade.");
+  if (!itens.length) {
+    mostrarErro("entradaInsumoErro", "Adicione pelo menos um insumo.");
+    return;
+  }
+  const incompleto = itens.find(item => !item.nome || item.quantidade <= 0 || item.valor_total < 0);
+  if (incompleto) {
+    mostrarErro("entradaInsumoErro", "Confira o insumo, a quantidade e o valor de cada item.");
     return;
   }
 
-  const insumo = state.insumos.find(i => i.tipo === tipo && i.nome === nome);
-  const unidade = insumo ? insumo.unidade : unidadePadrao(tipo);
-
-  const { data: rows } = await sb.from("estoque_insumos")
-    .select("*")
-    .eq("tipo", tipo)
-    .eq("nome", nome)
-    .limit(1);
-
-  const atual = rows && rows[0] ? rows[0] : null;
-  const novaQtd = Number(atual?.quantidade || 0) + quantidade;
-
-  const up = await sb.from("estoque_insumos").upsert({
-    insumo_id: insumo ? insumo.id : null,
-    tipo,
-    nome,
-    unidade,
-    quantidade: novaQtd,
-    atualizado_em: new Date().toISOString()
-  }, { onConflict:"tipo,nome" });
-
-  if (up.error) {
-    mostrarErro("entradaInsumoErro", up.error.message);
-    return;
+  const btn = document.getElementById("entradaInsumoSalvarBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Registrando itens...";
   }
 
-  await sb.from("entradas_insumos").insert({
-    insumo_id: insumo ? insumo.id : null,
-    tipo,
-    nome,
-    unidade,
-    quantidade,
-    fornecedor,
-    valor_total,
-    validade,
-    lote_fornecedor,
-    observacao
-  });
+  try {
+    const { error } = await sb.rpc("erp_registrar_entrada_insumos_multipla", {
+      p_itens:itens,
+      p_observacao:observacao || null
+    });
+    if (error) throw error;
+  } catch(e) {
+    const mensagem = String(e?.message || e || "Não foi possível registrar os insumos.");
+    mostrarErro(
+      "entradaInsumoErro",
+      mensagem.includes("erp_registrar_entrada_insumos_multipla")
+        ? "A atualização SQL 14 de entradas múltiplas ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+    return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = "Registrar todos os itens";
+    }
+  }
 
-  await sb.from("movimentacoes").insert({
-    tipo:"ENTRADA INSUMO",
-    categoria:"INSUMO",
-    item_nome:nome,
-    quantidade,
-    unidade,
-    origem:"COMPRA",
-    observacao
-  });
-
-  ["entradaInsumoQtd","entradaInsumoValor","entradaInsumoValidade","entradaInsumoLote","entradaInsumoObs"].forEach(id => document.getElementById(id).value = "");
-  invalidar("estoque","inicio");
-  alert("Compra de insumo registrada.");
+  document.getElementById("entradaInsumoObs").value = "";
+  prepararFormEntradaInsumo();
+  invalidar("estoque","inicio","auditoria","correcoes");
+  alert(`${itens.length} item(ns) de insumo registrado(s).`);
   carregarEstoque(true);
   carregarInicio(true);
 }
@@ -2257,28 +2371,27 @@ async function salvarRetiradaPhenomena() {
   }
 }
 
-async function simularBaixaCervejaVirtual(cerveja_nome, q10, q20, q30, q50, estoqueVirtual) {
-  let rows = estoqueVirtual.get(cerveja_nome);
+async function simularBaixaCervejaVirtual(cerveja_nome, origem, q10, q20, q30, q50, estoqueVirtual) {
+  const chave = `${cerveja_nome}|${origem}`;
+  let estoque = estoqueVirtual.get(chave);
 
-  if (!rows) {
+  if (!estoque) {
     const { data, error } = await sb.from("estoque_cerveja")
       .select("*")
       .eq("cerveja_nome", cerveja_nome)
-      .in("origem", ["PRODUCAO","ITAPEMA","PHENOMENA"]);
+      .eq("origem", origem)
+      .limit(1);
 
     if (error) throw error;
-
-    const ordem = ["PRODUCAO","ITAPEMA","PHENOMENA"];
-    rows = ordem.map(origem => (data || []).find(r => r.origem === origem) || {
+    estoque = data?.[0] ? { ...data[0] } : {
       cerveja_nome,
       origem,
       q10:0, q20:0, q30:0, q50:0,
       litros:0
-    });
-    estoqueVirtual.set(cerveja_nome, rows);
+    };
+    estoqueVirtual.set(chave, estoque);
   }
 
-  const ordem = ["PRODUCAO","ITAPEMA","PHENOMENA"];
   const pedidos = [
     ["q10", q10, 10, "10L"],
     ["q20", q20, 20, "20L"],
@@ -2290,34 +2403,25 @@ async function simularBaixaCervejaVirtual(cerveja_nome, q10, q20, q30, q50, esto
   const faltas = [];
 
   for (const [campo, qtdPedida, litrosPorBarril, label] of pedidos) {
-    let restante = Number(qtdPedida || 0);
-    if (restante <= 0) continue;
-
-    for (const origem of ordem) {
-      if (restante <= 0) break;
-      const u = rows.find(r => r.origem === origem);
-      const disponivel = Number(u[campo] || 0);
-      const usar = Math.min(disponivel, restante);
-      if (usar > 0) {
-        u[campo] = disponivel - usar;
-        restante -= usar;
-        baixas.push({ origem, campo, label, quantidade: usar, litros: usar * litrosPorBarril });
-      }
+    const pedido = Number(qtdPedida || 0);
+    if (pedido <= 0) continue;
+    const disponivel = Number(estoque[campo] || 0);
+    if (pedido > disponivel) {
+      faltas.push(`${cerveja_nome} — ${origem} — ${label}: solicitado ${pedido}, disponível ${disponivel}, falta ${pedido - disponivel}`);
+      continue;
     }
-
-    if (restante > 0) {
-      const disponivelTotal = rows.reduce((s,r) => s + Number(r[campo] || 0), 0) + (Number(qtdPedida || 0) - restante);
-      faltas.push(`${cerveja_nome} ${label}: solicitado ${qtdPedida}, disponível ${disponivelTotal}, falta ${restante}`);
-    }
+    estoque[campo] = disponivel - pedido;
+    baixas.push({ origem, campo, label, quantidade:pedido, litros:pedido * litrosPorBarril });
   }
 
   if (faltas.length) throw new Error("Estoque insuficiente:\n" + faltas.join("\n"));
 
-  rows.forEach(u => u.litros = litrosBarris(u.q10,u.q20,u.q30,u.q50));
-  const resumoPorOrigem = {};
-  baixas.forEach(b => resumoPorOrigem[b.origem] = (resumoPorOrigem[b.origem] || 0) + b.litros);
+  estoque.litros = litrosBarris(estoque.q10,estoque.q20,estoque.q30,estoque.q50);
+  const resumoPorOrigem = {
+    [origem]:baixas.reduce((total, baixa) => total + baixa.litros, 0)
+  };
 
-  return { updates: rows, baixas, resumoPorOrigem };
+  return { updates:[estoque], baixas, resumoPorOrigem };
 }
 
 
@@ -2936,6 +3040,7 @@ async function prepararFormSaida() {
     await carregarCervejasSaidaComSaldo();
   } catch(e) {
     state.cervejasSaidaComSaldo = new Set();
+    state.estoqueSaidaPorCerveja = new Map();
     mostrarErro("saidaErro", "N\u00e3o foi poss\u00edvel consultar os barris dispon\u00edveis: " + e.message);
   }
   prepararSelectClientes("saidaCliente");
@@ -4266,6 +4371,11 @@ function adicionarItemSaida() {
     <label>Cerveja</label>
     <select class="saidaItemCerveja"></select>
 
+    <label>Retirar do estoque de</label>
+    <select class="saidaItemOrigem" disabled>
+      <option value="">Selecione primeiro a cerveja...</option>
+    </select>
+
     <div class="linha2">
       <div><label>Barris 10L</label><input class="saidaItemQ10" type="number" min="0" value="0"></div>
       <div><label>Barris 20L</label><input class="saidaItemQ20" type="number" min="0" value="0"></div>
@@ -4295,6 +4405,34 @@ function adicionarItemSaida() {
     op.textContent = c.nome;
     sel.appendChild(op);
   });
+  sel.addEventListener("change", () => atualizarOrigensItemSaida(div));
+}
+
+function rotuloOrigemSaida(origem) {
+  return origem === "PRODUCAO" ? "Produção" : origem === "ITAPEMA" ? "Itapema" : origem;
+}
+
+function resumoBarrisDisponiveis(item) {
+  return detalharBarrisComSaldo(item.q10,item.q20,item.q30,item.q50);
+}
+
+function atualizarOrigensItemSaida(div) {
+  const cerveja = div.querySelector(".saidaItemCerveja").value;
+  const select = div.querySelector(".saidaItemOrigem");
+  const estoques = state.estoqueSaidaPorCerveja.get(cerveja) || [];
+
+  select.innerHTML = '<option value="">Selecionar origem...</option>';
+  select.disabled = !cerveja || !estoques.length;
+  estoques
+    .sort((a,b) => ["PRODUCAO","ITAPEMA"].indexOf(a.origem) - ["PRODUCAO","ITAPEMA"].indexOf(b.origem))
+    .forEach(estoque => {
+      const opcao = document.createElement("option");
+      opcao.value = estoque.origem;
+      opcao.textContent = `${rotuloOrigemSaida(estoque.origem)} — ${resumoBarrisDisponiveis(estoque)}`;
+      select.appendChild(opcao);
+    });
+
+  if (estoques.length === 1) select.value = estoques[0].origem;
 }
 
 function coletarItensSaida() {
@@ -4302,6 +4440,7 @@ function coletarItensSaida() {
 
   document.querySelectorAll("#saidaItens .saidaItem").forEach(div => {
     const cerveja_nome = div.querySelector(".saidaItemCerveja").value;
+    const origem = div.querySelector(".saidaItemOrigem").value;
     const q10 = Number(div.querySelector(".saidaItemQ10").value || 0);
     const q20 = Number(div.querySelector(".saidaItemQ20").value || 0);
     const q30 = Number(div.querySelector(".saidaItemQ30").value || 0);
@@ -4311,6 +4450,7 @@ function coletarItensSaida() {
     if (cerveja_nome && somaBarris(q10,q20,q30,q50) > 0) {
       itens.push({
         cerveja_nome,
+        origem,
         q10,
         q20,
         q30,

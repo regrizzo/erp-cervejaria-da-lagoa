@@ -108,19 +108,19 @@ function mostrarTela(nome) {
 async function salvarEntradaCerveja() {
   mostrarErro("entradaCervejaErro", "");
 
-  const cerveja_nome = document.getElementById("entradaCerveja").value;
   const origem = document.getElementById("entradaOrigem").value;
-  const q10 = Number(document.getElementById("entradaQ10").value || 0);
-  const q20 = Number(document.getElementById("entradaQ20").value || 0);
-  const q30 = Number(document.getElementById("entradaQ30").value || 0);
-  const q50 = Number(document.getElementById("entradaQ50").value || 0);
+  const itens = coletarEntradasCerveja();
   const observacao = document.getElementById("entradaObs").value.trim();
 
-  if (!cerveja_nome || somaBarris(q10,q20,q30,q50) <= 0) {
-    mostrarErro(
-      "entradaCervejaErro",
-      "Selecione a cerveja e informe os barris."
-    );
+  if (!itens.length) {
+    mostrarErro("entradaCervejaErro", "Adicione pelo menos uma cerveja.");
+    return;
+  }
+  const incompleto = itens.find(item =>
+    !item.cerveja_nome || somaBarris(item.q10,item.q20,item.q30,item.q50) <= 0
+  );
+  if (incompleto) {
+    mostrarErro("entradaCervejaErro", "Confira a cerveja e os barris de cada item.");
     return;
   }
 
@@ -131,13 +131,9 @@ async function salvarEntradaCerveja() {
   }
 
   try {
-    const { error } = await sb.rpc("erp_registrar_entrada_cerveja", {
-      p_cerveja_nome:cerveja_nome,
+    const { error } = await sb.rpc("erp_registrar_entrada_cerveja_multipla", {
+      p_itens:itens,
       p_origem:origem,
-      p_q10:q10,
-      p_q20:q20,
-      p_q30:q30,
-      p_q50:q50,
       p_observacao:observacao || null
     });
 
@@ -148,26 +144,23 @@ async function salvarEntradaCerveja() {
     );
     mostrarErro(
       "entradaCervejaErro",
-      mensagem.includes("erp_registrar_entrada_cerveja")
-        ? "A atualização SQL 10 de integridade ainda não foi aplicada no Supabase."
+      mensagem.includes("erp_registrar_entrada_cerveja_multipla")
+        ? "A atualização SQL 14 de entradas múltiplas ainda não foi aplicada no Supabase."
         : mensagem
     );
     return;
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerText = "Registrar entrada";
+      btn.innerText = "Registrar todas as entradas";
     }
   }
 
-  [
-    "entradaQ10","entradaQ20","entradaQ30","entradaQ50","entradaObs"
-  ].forEach(id => {
-    document.getElementById(id).value = id === "entradaObs" ? "" : "0";
-  });
+  document.getElementById("entradaObs").value = "";
+  prepararFormEntradaCerveja();
 
   invalidar("estoque","inicio","correcoes","phenomena");
-  alert("Entrada de cerveja registrada.");
+  alert(`${itens.length} entrada(s) de cerveja de Itapema registrada(s).`);
   carregarEstoque(true);
   carregarInicio(true);
 }
@@ -200,6 +193,11 @@ async function salvarSaidaMultipla() {
     );
     return;
   }
+  const semOrigem = itens.find(item => !item.origem);
+  if (semOrigem) {
+    mostrarErro("saidaErro", `Escolha a origem do estoque para ${semOrigem.cerveja_nome}.`);
+    return;
+  }
 
   const simulacoes = [];
   const estoqueVirtual = new Map();
@@ -227,6 +225,7 @@ async function salvarSaidaMultipla() {
 
       const sim = await simularBaixaCervejaVirtual(
         item.cerveja_nome,
+        item.origem,
         item.q10,
         item.q20,
         item.q30,
@@ -250,11 +249,9 @@ async function salvarSaidaMultipla() {
 
     resumo += `Barris: ${detalharBarrisComSaldo(item.q10,item.q20,item.q30,item.q50)}\n`;
 
-    resumo += `Baixa automática: ${
-      Object.entries(sim.resumoPorOrigem)
-        .map(([o,l]) => `${o}: ${fmt(l)}L`)
-        .join(" • ")
-    }\n`;
+    resumo += `Origem escolhida: ${rotuloOrigemSaida(item.origem)} — ${fmt(
+      Object.values(sim.resumoPorOrigem).reduce((total, litros) => total + litros, 0)
+    )}L\n`;
 
     if (item.codigos_barris) {
       resumo += `Códigos: ${item.codigos_barris}\n`;
@@ -277,6 +274,7 @@ async function salvarSaidaMultipla() {
       p_cliente_id:clienteId,
       p_itens:itens.map(item => ({
         cerveja_nome:item.cerveja_nome,
+        origem:item.origem,
         q10:item.q10,
         q20:item.q20,
         q30:item.q30,
@@ -295,7 +293,7 @@ async function salvarSaidaMultipla() {
     mostrarErro(
       "saidaErro",
       mensagem.includes("erp_registrar_saida_multipla")
-        ? "A atualização SQL 10 de integridade ainda não foi aplicada no Supabase."
+        ? "A atualização SQL 14 de origem das saídas ainda não foi aplicada no Supabase."
         : "Erro ao salvar saída: " + mensagem
     );
     return;
@@ -313,6 +311,7 @@ async function salvarSaidaMultipla() {
     await carregarCervejasSaidaComSaldo();
   } catch(e) {
     state.cervejasSaidaComSaldo = new Set();
+    state.estoqueSaidaPorCerveja = new Map();
   }
   adicionarItemSaida();
 
