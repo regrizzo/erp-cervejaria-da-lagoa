@@ -34,7 +34,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
 
-  <link rel="stylesheet" href="./styles.css?v=tanques-producao-20260813" />
+  <link rel="stylesheet" href="./styles.css?v=origem-saidas-entradas-multiplas-20260927" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -476,65 +476,31 @@
         </div>
 
         <div id="formEntradaCerveja" class="formBox" style="display:none;">
-          <h3>Entrada de estoque de cerveja</h3>
-          <label>Cerveja</label>
-          <select id="entradaCerveja"></select>
+          <h3>Entrada de cervejas de Itapema</h3>
+          <div class="infoBox">Origem desta entrada: <strong>ITAPEMA</strong></div>
+          <input id="entradaOrigem" type="hidden" value="ITAPEMA">
 
-          <label>Origem</label>
-          <select id="entradaOrigem">
-            <option value="PRODUCAO">PRODUÇÃO</option>
-            <option value="ITAPEMA">ITAPEMA</option>
-            <option value="PHENOMENA">PHENOMENA</option>
-          </select>
+          <div id="entradaCervejaItens"></div>
+          <button type="button" class="btnMini" data-editar-modulo="estoque" onclick="adicionarEntradaCervejaItem()">+ Adicionar outra cerveja</button>
 
-          <div class="linha2">
-            <div><label>Barris 10L</label><input id="entradaQ10" type="number" min="0" value="0"></div>
-            <div><label>Barris 20L</label><input id="entradaQ20" type="number" min="0" value="0"></div>
-          </div>
-          <div class="linha2">
-            <div><label>Barris 30L</label><input id="entradaQ30" type="number" min="0" value="0"></div>
-            <div><label>Barris 50L</label><input id="entradaQ50" type="number" min="0" value="0"></div>
-          </div>
-
-          <label>Observação</label>
+          <label>Observação geral</label>
           <textarea id="entradaObs"></textarea>
 
-          <button id="entradaCervejaSalvarBtn" data-editar-modulo="estoque" onclick="salvarEntradaCerveja()">Registrar entrada</button>
+          <button id="entradaCervejaSalvarBtn" data-editar-modulo="estoque" onclick="salvarEntradaCerveja()">Registrar todas as entradas</button>
           <div id="entradaCervejaErro" class="erro"></div>
         </div>
 
         <div id="formEntradaInsumo" class="formBox" style="display:none;">
-          <h3>Entrada de compra de insumo</h3>
+          <h3>Entrada de compras de insumos</h3>
+          <div class="infoBox">Adicione todos os itens da compra antes de registrar.</div>
 
-          <label>Tipo</label>
-          <select id="entradaInsumoTipo" onchange="popularEntradaInsumos()">
-            <option value="MALTE">Malte</option>
-            <option value="LUPULO">Lúpulo</option>
-            <option value="FERMENTO">Fermento</option>
-          </select>
+          <div id="entradaInsumoItens"></div>
+          <button type="button" class="btnMini" data-editar-modulo="estoque" onclick="adicionarEntradaInsumoItem()">+ Adicionar outro insumo</button>
 
-          <label>Insumo</label>
-          <select id="entradaInsumoNome"></select>
-
-          <label>Quantidade</label>
-          <input id="entradaInsumoQtd" type="number" min="0" step="0.001">
-
-          <label>Fornecedor</label>
-          <input id="entradaInsumoFornecedor">
-
-          <label>Valor total</label>
-          <input id="entradaInsumoValor" type="number" min="0" step="0.01">
-
-          <label>Validade</label>
-          <input id="entradaInsumoValidade" type="date">
-
-          <label>Lote fornecedor</label>
-          <input id="entradaInsumoLote">
-
-          <label>Observação</label>
+          <label>Observação geral</label>
           <textarea id="entradaInsumoObs"></textarea>
 
-          <button data-editar-modulo="estoque" onclick="salvarEntradaInsumo()">Registrar compra</button>
+          <button id="entradaInsumoSalvarBtn" data-editar-modulo="estoque" onclick="salvarEntradaInsumo()">Registrar todos os itens</button>
           <div id="entradaInsumoErro" class="erro"></div>
         </div>
 
@@ -652,7 +618,7 @@
           <input id="saidaResponsavel" placeholder="Quem lançou">
 
           <div class="infoBox">Itens da saída</div>
-          <p class="muted">Informe os códigos dos barris enviados ao cliente. Toda saída para cliente baixa o estoque automaticamente.</p>
+          <p class="muted">Escolha em cada item se os barris saem da Produção ou de Itapema. A Phenomena continua sendo controlada somente na aba própria.</p>
           <div id="saidaItens"></div>
           <button type="button" class="btnMini" data-editar-modulo="saidas" onclick="adicionarItemSaida()">+ Adicionar outra cerveja</button>
 
@@ -1299,9 +1265,9 @@
     </nav>
   </div>
 
-  <script src="./app.js?v=tanques-producao-20260813"></script>
-  <script src="./js/operacoes.js?v=tanques-producao-20260813"></script>
-  <script src="./js/administracao.js?v=tanques-producao-20260813"></script>
-  <script src="./js/acesso.js?v=tanques-producao-20260813"></script>
+  <script src="./app.js?v=origem-saidas-entradas-multiplas-20260927"></script>
+  <script src="./js/operacoes.js?v=origem-saidas-entradas-multiplas-20260927"></script>
+  <script src="./js/administracao.js?v=origem-saidas-entradas-multiplas-20260927"></script>
+  <script src="./js/acesso.js?v=origem-saidas-entradas-multiplas-20260927"></script>
 </body>
 </html>

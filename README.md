@@ -75,8 +75,9 @@ Para uma instalação nova:
 6. Execute `11_PRODUCAO_EM_DUAS_ETAPAS.sql`.
 7. Execute `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`.
 8. Execute `13_TANQUES_PRODUCAO.sql`.
-9. Configure os provedores de autenticação desejados no Supabase.
-10. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
+9. Execute `14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql`.
+10. Configure os provedores de autenticação desejados no Supabase.
+11. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
    usuários já existentes no momento da instalação em administradores ativos.
 
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
@@ -106,6 +107,11 @@ registra o motivo no histórico dentro de uma única operação.
 Depois do SQL 12, execute `13_TANQUES_PRODUCAO.sql` para vincular cada nova
 produção a um dos cinco tanques. O tanque pode ser corrigido com motivo
 registrado, e duas produções em andamento não podem ocupar o mesmo tanque.
+
+Depois do SQL 13, execute `14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql` para
+escolher Produção ou Itapema em cada item de uma saída e lançar várias
+cervejas de Itapema ou vários insumos em uma única operação. A saída comum não
+baixa o estoque Phenomena, que permanece exclusivo da aba própria.
 
 ### Migração dos dados antigos
 
@@ -154,4 +160,5 @@ perfis e permissões devem sempre preservar as políticas presentes em
 `10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql` e
 `11_PRODUCAO_EM_DUAS_ETAPAS.sql` e
 `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql` e
-`13_TANQUES_PRODUCAO.sql`.
+`13_TANQUES_PRODUCAO.sql` e
+`14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql`.

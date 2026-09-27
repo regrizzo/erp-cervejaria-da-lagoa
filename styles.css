@@ -86,6 +86,7 @@ h3 { margin:18px 0 10px; }
 
 .btnWarn { background:#f59e0b; color:#111827; width:100%; margin-bottom:10px; }
 .saidaItem { background:#f8fafc; border:1px solid var(--border); border-radius:16px; padding:12px; margin-bottom:12px; }
+.entradaLoteItem { background:#f8fafc; border:1px solid var(--border); border-radius:16px; padding:12px; margin-bottom:12px; }
 .saidaItemHeader { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; }
 .saidaItemHeader strong { font-size:14px; }
 .smallDanger { background:#ef4444; padding:8px 10px; border-radius:10px; font-size:12px; }

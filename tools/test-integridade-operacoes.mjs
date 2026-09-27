@@ -7,6 +7,10 @@ const sql = fs.readFileSync(
   path.join(raiz, "10_INTEGRIDADE_E_OPERACOES_ATOMICAS.sql"),
   "utf8"
 );
+const sql14 = fs.readFileSync(
+  path.join(raiz, "14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql"),
+  "utf8"
+);
 const administracao = fs.readFileSync(
   path.join(raiz, "js", "administracao.js"),
   "utf8"
@@ -49,7 +53,6 @@ for (const rpc of rpcs) {
 }
 
 for (const rpc of [
-  "erp_registrar_entrada_cerveja",
   "erp_registrar_saida_multipla",
   "erp_registrar_envase"
 ]) {
@@ -67,6 +70,12 @@ for (const rpc of [
     `a interface operacional não chama ${rpc}`
   );
 }
+
+exigir(
+  administracao.includes('sb.rpc("erp_registrar_entrada_cerveja_multipla"') &&
+    /create\s+or\s+replace\s+function\s+public\.erp_registrar_entrada_cerveja_multipla\b/i.test(sql14),
+  "a interface administrativa não chama a entrada múltipla de cerveja do SQL 14"
+);
 
 exigir(
   operacoes.includes('sb.rpc("erp_iniciar_producao_com_tanque"'),
