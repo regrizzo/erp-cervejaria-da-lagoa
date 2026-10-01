@@ -5,6 +5,8 @@
 const STATUS_LOTE_ATIVOS_OP = [
   "INSUMOS_REGISTRADOS",
   "FERMENTANDO",
+  "RAMPA_DIACETIL",
+  "MATURACAO",
   "DRY_HOPPING",
   "PRONTO_ENVASE",
   "PARCIALMENTE_ENVASADO"
@@ -13,6 +15,8 @@ const STATUS_LOTE_ATIVOS_OP = [
 const STATUS_LOTE_OPCOES = [
   "INSUMOS_REGISTRADOS",
   "FERMENTANDO",
+  "RAMPA_DIACETIL",
+  "MATURACAO",
   "DRY_HOPPING",
   "PRONTO_ENVASE",
   "PARCIALMENTE_ENVASADO",
@@ -50,6 +54,8 @@ function rotuloStatusLote(status) {
   const mapa = {
     INSUMOS_REGISTRADOS:"Volume pendente",
     FERMENTANDO:"Em fermentação",
+    RAMPA_DIACETIL:"Rampa de diacetil",
+    MATURACAO:"Maturação",
     DRY_HOPPING:"Dry hopping",
     PRONTO_ENVASE:"Pronto para envase",
     PARCIALMENTE_ENVASADO:"Parcialmente envasado",
@@ -63,6 +69,8 @@ function classeStatusLote(status) {
   const mapa = {
     INSUMOS_REGISTRADOS:"status-insumos",
     FERMENTANDO:"status-fermentando",
+    RAMPA_DIACETIL:"status-diacetil",
+    MATURACAO:"status-maturacao",
     DRY_HOPPING:"status-dry",
     PRONTO_ENVASE:"status-pronto",
     PARCIALMENTE_ENVASADO:"status-parcial",
@@ -822,7 +830,37 @@ async function carregarProducoesFermentando(force=false) {
   state.loaded.producoesFermentando = true;
 }
 
-async function alterarStatusLote(id, novoStatus) {
+function dataISOHojeEtapa() {
+  const agora = new Date();
+  const local = new Date(
+    agora.getTime() - agora.getTimezoneOffset() * 60000
+  );
+  return local.toISOString().slice(0,10);
+}
+
+function solicitarDataEtapa(rotulo, dataPadrao=dataISOHojeEtapa()) {
+  const informada = window.prompt(
+    `Data de início de ${rotulo} (AAAA-MM-DD):`,
+    dataPadrao
+  );
+
+  if (informada === null) return null;
+
+  const data = String(informada).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    alert("Informe a data no formato AAAA-MM-DD.");
+    return null;
+  }
+
+  if (data > dataISOHojeEtapa()) {
+    alert("A data da etapa não pode estar no futuro.");
+    return null;
+  }
+
+  return data;
+}
+
+async function alterarStatusLote(id, novoStatus, selectEl=null) {
   if (!STATUS_LOTE_OPCOES.includes(novoStatus)) return;
 
   const lote = (
@@ -840,31 +878,44 @@ async function alterarStatusLote(id, novoStatus) {
     return;
   }
 
+  const dataEtapa = solicitarDataEtapa(rotuloStatusLote(novoStatus));
+  if (!dataEtapa) {
+    if (selectEl) selectEl.value = lote.status;
+    return;
+  }
+
+  if (lote.data_producao && dataEtapa < lote.data_producao) {
+    alert("A etapa não pode começar antes da data de produção.");
+    if (selectEl) selectEl.value = lote.status;
+    return;
+  }
+
   if (novoStatus === "FINALIZADO") {
     const ok = confirm(
       `Finalizar ${lote.cerveja_nome} — lote ${lote.lote}?`
     );
-    if (!ok) return;
+    if (!ok) {
+      if (selectEl) selectEl.value = lote.status;
+      return;
+    }
   }
 
-  const { error } = await sb.from("producoes")
-    .update({ status:novoStatus })
-    .eq("id", id);
+  const { error } = await sb.rpc("erp_alterar_etapa_producao", {
+    p_producao_id:id,
+    p_novo_status:novoStatus,
+    p_data_etapa:dataEtapa
+  });
 
   if (error) {
-    alert(error.message);
+    const mensagem = String(error.message || error);
+    alert(
+      mensagem.includes("erp_alterar_etapa_producao")
+        ? "A atualização SQL 16 de histórico das etapas ainda não foi aplicada no Supabase."
+        : mensagem
+    );
+    if (selectEl) selectEl.value = lote.status;
     return;
   }
-
-  await sb.from("movimentacoes").insert({
-    tipo:"STATUS LOTE",
-    categoria:"PRODUCAO",
-    item_nome:lote.cerveja_nome,
-    quantidade:0,
-    unidade:"",
-    lote:lote.lote,
-    observacao:`Status alterado para ${rotuloStatusLote(novoStatus)}`
-  });
 
   invalidar(
     "producao","producoesFermentando","lotes",
@@ -878,6 +929,30 @@ async function alterarStatusLote(id, novoStatus) {
   if (document.getElementById("telaProducao")?.classList.contains("active")) {
     await carregarProducao(true);
   }
+}
+
+async function editarDataEtapa(etapaId, producaoId, status, dataAtual) {
+  const novaData = solicitarDataEtapa(
+    rotuloStatusLote(status),
+    dataAtual || dataISOHojeEtapa()
+  );
+
+  if (!novaData || novaData === dataAtual) return;
+
+  const { error } = await sb.rpc("erp_editar_data_etapa_producao", {
+    p_etapa_id:etapaId,
+    p_data_etapa:novaData,
+    p_motivo:"Correção informada na ficha do lote"
+  });
+
+  if (error) {
+    alert(error.message || error);
+    return;
+  }
+
+  invalidar("lotes","producao","painelDia","auditoria");
+  alert("Data da etapa atualizada.");
+  await abrirFichaLote(producaoId);
 }
 
 async function salvarDryHop() {
@@ -988,7 +1063,17 @@ function renderProducoes() {
                 : ""
             }
             ${
-              !volumePendente && ["FERMENTANDO","DRY_HOPPING"].includes(p.status)
+              !volumePendente && p.status === "FERMENTANDO"
+                ? `<button class="btnTiny btnEdit" onclick="alterarStatusLote('${p.id}','RAMPA_DIACETIL')">Iniciar rampa de diacetil</button>`
+                : ""
+            }
+            ${
+              !volumePendente && p.status === "RAMPA_DIACETIL"
+                ? `<button class="btnTiny btnEdit" onclick="alterarStatusLote('${p.id}','MATURACAO')">Iniciar maturação</button>`
+                : ""
+            }
+            ${
+              !volumePendente && ["MATURACAO","DRY_HOPPING"].includes(p.status)
                 ? `<button class="btnTiny btnEdit" onclick="alterarStatusLote('${p.id}','PRONTO_ENVASE')">Pronto para envase</button>`
                 : ""
             }
@@ -1307,7 +1392,15 @@ function renderListaLotes() {
   });
 }
 
-function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermentoRows, movimentosRows) {
+function montarLinhaDoTempoLote(
+  lote,
+  insumosRows,
+  dryRows,
+  envaseRows,
+  fermentoRows,
+  movimentosRows,
+  etapasRows
+) {
   const eventos = [];
   const iniciouSemVolume = volumeProducaoPendente(lote)
     || Boolean(lote.volume_informado_em);
@@ -1386,10 +1479,21 @@ function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermento
     });
   });
 
+  etapasRows.forEach(e => eventos.push({
+    data:e.data_etapa,
+    titulo:rotuloStatusLote(e.status),
+    texto:"Início da etapa",
+    ordem:dataParaOrdenacao(e.data_etapa) + 2,
+    etapaId:e.id,
+    producaoId:e.producao_id,
+    status:e.status
+  }));
+
   movimentosRows
     .filter(m => [
       "STATUS LOTE",
       "CORRECAO DATA PRODUCAO",
+      "CORRECAO DATA ETAPA",
       "CORRECAO TANQUE PRODUCAO",
       "CORRECAO INSUMO ESTORNO",
       "CORRECAO INSUMO BAIXA"
@@ -1400,6 +1504,8 @@ function montarLinhaDoTempoLote(lote, insumosRows, dryRows, envaseRows, fermento
         ? "Mudança de status"
         : m.tipo === "CORRECAO DATA PRODUCAO"
           ? "Correção da data de produção"
+          : m.tipo === "CORRECAO DATA ETAPA"
+            ? "Correção da data da etapa"
           : m.tipo === "CORRECAO TANQUE PRODUCAO"
             ? "Correção do tanque da produção"
           : m.tipo === "CORRECAO INSUMO ESTORNO"
@@ -1425,7 +1531,14 @@ async function abrirFichaLote(id) {
   box.style.display = "block";
   conteudo.innerHTML = '<div class="muted">Carregando ficha...</div>';
 
-  const [insumos, dry, envases, fermentoHist, movimentos] = await Promise.all([
+  const [
+    insumos,
+    dry,
+    envases,
+    fermentoHist,
+    movimentos,
+    etapas
+  ] = await Promise.all([
     sb.from("producao_insumos")
       .select("*")
       .eq("producao_id", id)
@@ -1450,7 +1563,12 @@ async function abrirFichaLote(id) {
     sb.from("movimentacoes")
       .select("*")
       .eq("lote", lote.lote)
-      .order("criado_em", { ascending:true })
+      .order("criado_em", { ascending:true }),
+
+    sb.from("producao_etapas")
+      .select("*")
+      .eq("producao_id", id)
+      .order("data_etapa", { ascending:true })
   ]);
 
   const insumosRows = insumos.data || [];
@@ -1458,6 +1576,7 @@ async function abrirFichaLote(id) {
   const envaseRows = envases.data || [];
   const fermentoRows = fermentoHist.data || [];
   const movimentosRows = movimentos.data || [];
+  const etapasRows = etapas.data || [];
 
   const totalEnvase = envaseRows.reduce(
     (s,e) => s + Number(e.litros_total || 0),
@@ -1514,7 +1633,8 @@ async function abrirFichaLote(id) {
     dryRows,
     envaseRows,
     fermentoRows,
-    movimentosRows
+    movimentosRows,
+    etapasRows
   );
 
   conteudo.innerHTML = `
@@ -1527,7 +1647,7 @@ async function abrirFichaLote(id) {
       ${
         volumePendente
           ? `<button class="btnTiny btnEdit" onclick="abrirVolumeDaProducao('${lote.id}')">Informar litros produzidos</button>`
-          : `<select onchange="alterarStatusLote('${lote.id}',this.value)">
+          : `<select onchange="alterarStatusLote('${lote.id}',this.value,this)">
               ${STATUS_LOTE_OPCOES
                 .filter(s => s !== "INSUMOS_REGISTRADOS")
                 .map(s => `
@@ -1602,6 +1722,11 @@ async function abrirFichaLote(id) {
                     : dataBR(e.data)
                 }</div>
                 <div class="timelineText">${escapeHtml(e.texto || "")}</div>
+                ${
+                  e.etapaId
+                    ? `<button class="btnTiny btnEdit" onclick="editarDataEtapa('${e.etapaId}','${e.producaoId}','${e.status}','${e.data}')">Editar data</button>`
+                    : ""
+                }
               </div>
             `).join("")
           : '<div class="sub">Nenhum evento registrado.</div>'

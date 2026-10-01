@@ -16,6 +16,8 @@ Execute apenas:
 7. `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`
 8. `13_TANQUES_PRODUCAO.sql`
 9. `14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql`
+10. `15_ETAPAS_FERMENTACAO.sql`
+11. `16_HISTORICO_ETAPAS_PRODUCAO.sql`
 
 O primeiro arquivo consolida a estrutura original, envase detalhado, retornos,
 Phenomena, correções, restauração e controle de acesso. O segundo cria o
@@ -28,6 +30,8 @@ cadastrar e baixar os insumos antes de informar o volume realmente produzido.
 O sétimo permite corrigir a data e os insumos consumidos sem estornar o lote.
 O oitavo registra o tanque de 1 a 5 e impede ocupação simultânea por dois lotes.
 O nono separa a baixa de cerveja por Produção ou Itapema e permite entradas em lote.
+O décimo acrescenta Rampa de diacetil e Maturação ao fluxo da produção.
+O décimo primeiro registra e permite corrigir a data real de início das etapas.
 
 ## Banco existente
 
@@ -134,6 +138,31 @@ Depois do SQL 13, ative os lançamentos em lote e a origem explícita:
 O SQL 14 permite escolher Produção ou Itapema em cada cerveja da saída comum.
 Ele impede que esse fluxo baixe a Phenomena e permite registrar várias cervejas
 de Itapema ou vários insumos de uma vez, cancelando o lote inteiro se um item falhar.
+
+### Etapas da fermentação
+
+Depois do SQL 14, ative as novas etapas:
+
+1. faça e guarde um backup;
+2. execute `15_ETAPAS_FERMENTACAO.sql`;
+3. confirme que as duas colunas da conferência final retornaram `true`;
+4. só então publique os arquivos atuais do site.
+
+O SQL 15 adiciona Rampa de diacetil e Maturação aos status permitidos e mantém
+essas produções na regra de ocupação exclusiva dos tanques.
+
+### Histórico e datas das etapas
+
+Depois do SQL 15, ative as datas efetivas do processo:
+
+1. faça e guarde um backup;
+2. execute `16_HISTORICO_ETAPAS_PRODUCAO.sql`;
+3. confirme que as três colunas da conferência final retornaram `true`;
+4. só então publique os arquivos atuais do site.
+
+Ao mudar uma etapa, o ERP permite informar o dia em que ela realmente começou.
+A data também pode ser corrigida na linha do tempo da ficha do lote, sem mudar
+a data de produção e mantendo a correção registrada na auditoria.
 
 ## Arquivos históricos
 

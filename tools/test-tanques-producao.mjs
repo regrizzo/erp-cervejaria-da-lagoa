@@ -12,7 +12,7 @@ const ordem = ler("ORDEM_SQL.md");
 assert.match(html, /<select id="prodTanque"/);
 assert.match(html, /<select id="editarProducaoTanque"/);
 assert.match(html, /salvarTanqueProducaoCorrigido\(\)/);
-assert.match(app, /APP_BUILD = "origem-saidas-entradas-multiplas-20260927"/);
+assert.match(app, /APP_BUILD = "etapas-fermentacao-datas-20261001"/);
 
 assert.match(operacoes, /for \(let tanque=1; tanque<=5; tanque\+\+\)/);
 assert.match(operacoes, /ocupado por \$\{ocupante\.cerveja_nome\}/);

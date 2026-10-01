@@ -24,9 +24,13 @@ ATUALIZAÇÃO DE INTEGRIDADE E CONFIABILIDADE
    13_TANQUES_PRODUCAO.sql
 6. Depois, execute:
    14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql
-7. Confirme que os cinco arquivos mostraram sucesso.
-8. Só depois publique os arquivos atuais do site.
-9. Atualize a página do ERP e faça os testes rápidos abaixo.
+7. Depois, execute:
+   15_ETAPAS_FERMENTACAO.sql
+8. Depois, execute:
+   16_HISTORICO_ETAPAS_PRODUCAO.sql
+9. Confirme que os sete arquivos mostraram sucesso.
+10. Só depois publique os arquivos atuais do site.
+11. Atualize a página do ERP e faça os testes rápidos abaixo.
 
 O SQL 10 não apaga o histórico. Ele protege novos registros contra valores
 inválidos e transforma entrada de cerveja, saída múltipla, produção, envase e
@@ -46,6 +50,13 @@ tanque com motivo registrado e impede dois lotes em andamento no mesmo tanque.
 O SQL 14 exige a escolha entre Produção e Itapema em cada item da saída comum,
 mantém a Phenomena somente na aba própria e permite lançar várias cervejas de
 Itapema ou vários insumos de uma vez.
+
+O SQL 15 adiciona Rampa de diacetil e Maturação ao fluxo da produção e mantém
+o tanque ocupado durante essas duas etapas.
+
+O SQL 16 registra a data real de início de cada etapa. Ao mudar de etapa, você
+pode informar uma data anterior; depois, a data ainda pode ser corrigida na
+linha do tempo da ficha do lote.
 
 TESTE RÁPIDO DEPOIS DA ATUALIZAÇÃO
 

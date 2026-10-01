@@ -76,8 +76,10 @@ Para uma instalação nova:
 7. Execute `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql`.
 8. Execute `13_TANQUES_PRODUCAO.sql`.
 9. Execute `14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql`.
-10. Configure os provedores de autenticação desejados no Supabase.
-11. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
+10. Execute `15_ETAPAS_FERMENTACAO.sql`.
+11. Execute `16_HISTORICO_ETAPAS_PRODUCAO.sql`.
+12. Configure os provedores de autenticação desejados no Supabase.
+13. Cadastre o primeiro usuário. O SQL de controle de acesso transforma os
    usuários já existentes no momento da instalação em administradores ativos.
 
 Os demais SQLs são históricos ou incrementais. Não execute todos novamente
@@ -112,6 +114,14 @@ Depois do SQL 13, execute `14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql` para
 escolher Produção ou Itapema em cada item de uma saída e lançar várias
 cervejas de Itapema ou vários insumos em uma única operação. A saída comum não
 baixa o estoque Phenomena, que permanece exclusivo da aba própria.
+
+Depois do SQL 14, execute `15_ETAPAS_FERMENTACAO.sql` para incluir Rampa de
+diacetil e Maturação no fluxo da produção. Essas etapas mantêm o tanque ocupado
+até o lote ser envasado ou finalizado.
+
+Depois do SQL 15, execute `16_HISTORICO_ETAPAS_PRODUCAO.sql` para informar
+a data real de início de cada etapa. A data pode ser corrigida depois na ficha
+do lote, e a alteração fica registrada no histórico.
 
 ### Migração dos dados antigos
 
@@ -161,4 +171,6 @@ perfis e permissões devem sempre preservar as políticas presentes em
 `11_PRODUCAO_EM_DUAS_ETAPAS.sql` e
 `12_CORRECOES_PRODUCAO_E_DRY_HOPPING.sql` e
 `13_TANQUES_PRODUCAO.sql` e
-`14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql`.
+`14_ORIGEM_SAIDAS_E_ENTRADAS_MULTIPLAS.sql` e
+`15_ETAPAS_FERMENTACAO.sql` e
+`16_HISTORICO_ETAPAS_PRODUCAO.sql`.

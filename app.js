@@ -1,5 +1,5 @@
 
-const APP_BUILD = "origem-saidas-entradas-multiplas-20260927";
+const APP_BUILD = "etapas-fermentacao-datas-20261001";
 
 // Evita o celular/PWA segurar arquivos antigos do app.
 (function limparCacheAntigo() {
